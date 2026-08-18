@@ -6,7 +6,6 @@
   <title>Devolução e Entrega de Relatórios</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    /* VARIÁVEIS CORPORATIVAS */
     :root {
       --primary: #1A365D; --secondary: #2B6CB0; --bg: #F7FAFC;
       --text: #2D3748; --text-light: #718096;
@@ -20,7 +19,6 @@
       margin: 0; padding: 0;
     }
 
-    /* HEADER & NAVEGAÇÃO */
     .header {
       background: var(--primary); color: white; padding: 15px 50px;
       text-align: center; font-weight: bold; font-size: 1.2rem;
@@ -32,13 +30,11 @@
     }
     .btn-back { left: 10px; } .btn-home { right: 10px; }
 
-    /* LAYOUT BÁSICO */
     .container { padding: 20px; max-width: 800px; margin: 0 auto; }
     .screen { display: none; }
-    .active-screen { display: block; animation: fadeIn 0.3s; }
+    .active-screen { display: block; animation: fadeIn 0.2s ease-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-    /* BOTÕES */
     .btn {
       display: flex; justify-content: space-between; align-items: center;
       width: 100%; padding: 16px; margin-bottom: 12px;
@@ -52,13 +48,11 @@
     .btn-group-row { display: flex; gap: 10px; margin-bottom: 20px; }
     .icon-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 0 10px;}
 
-    /* STATUS COLORS */
     .status-green { border-left: 8px solid var(--green); }
     .status-yellow { border-left: 8px solid var(--yellow); }
     .status-red { border-left: 8px solid var(--red); }
     .status-gray { border-left: 8px solid var(--gray); color: var(--text-light); }
 
-    /* MODAIS */
     .modal-overlay {
       display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.6); z-index: 1000;
@@ -69,25 +63,23 @@
     }
     .close-modal { position: absolute; right: 15px; top: 15px; font-size: 1.5rem; cursor: pointer; color: var(--text-light);}
     
-    /* PROGRESS BAR */
-    .progress-bg { background: #E2E8F0; height: 10px; border-radius: 5px; margin-bottom: 5px; }
-    .progress-fill { background: var(--red); height: 100%; border-radius: 5px; transition: width 0.3s; }
-    .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; }
+    .progress-bg { background: #E2E8F0; height: 12px; border-radius: 6px; margin-bottom: 5px; overflow: hidden; }
+    .progress-fill { background: var(--red); height: 100%; border-radius: 6px; transition: width 0.3s; }
+    .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; font-weight: bold;}
 
-    /* CAMERA */
     #reader { width: 100%; border: 3px solid var(--secondary); border-radius: 8px; }
     .toast-network { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; }
 
     input[type="text"], input[type="date"], select {
       width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #CBD5E0; border-radius: 6px; box-sizing: border-box;
     }
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem;}
-    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #E2E8F0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.85rem;}
+    th, td { padding: 8px; text-align: left; border-bottom: 1px solid #E2E8F0; }
   </style>
 </head>
 <body>
 
-  <!-- ================= TELA 1: HOME ================= -->
+  <!-- TELA 1: HOME -->
   <div id="screen-home" class="screen active-screen">
     <div class="header">Devolução e Entrega de Relatórios</div>
     <div class="container">
@@ -99,7 +91,7 @@
     </div>
   </div>
 
-  <!-- ================= TELA: CÂMERA ================= -->
+  <!-- TELA: CÂMERA -->
   <div id="screen-camera" class="screen">
     <div class="header">
       <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
@@ -112,7 +104,7 @@
     </div>
   </div>
 
-  <!-- ================= TELA 2: RELATÓRIO DE FALTAS ================= -->
+  <!-- TELA 2: RELATÓRIO DE FALTAS -->
   <div id="screen-periodos" class="screen">
     <div class="header">
       <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
@@ -122,15 +114,13 @@
     <div class="container">
       <div class="btn-group-row">
         <button class="btn-primary" style="width: 20%; font-size: 1.5rem; border-radius: 8px;" onclick="abrirModal('modal-add-periodo')">+</button>
-        <button class="btn-primary" style="width: 75%; background: var(--gray);" onclick="abrirModal('modal-controle')">CONTROLE 📊</button>
+        <button class="btn-primary" style="width: 75%; background: var(--gray);" onclick="abrirControle()">CONTROLE 📊</button>
       </div>
-      <div id="lista-periodos">
-        <!-- Renderizado via JS -->
-      </div>
+      <div id="lista-periodos"></div>
     </div>
   </div>
 
-  <!-- ================= TELA 3: DATAS ================= -->
+  <!-- TELA 3: DATAS -->
   <div id="screen-datas" class="screen">
     <div class="header">
       <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
@@ -146,49 +136,41 @@
       <div class="progress-bg"><div class="progress-fill" id="progress-bar" style="width: 0%;"></div></div>
       <p class="progress-text" id="progress-text">Falta devolver: 0% (0)</p>
 
-      <div id="lista-datas">
-        <!-- Renderizado via JS -->
-      </div>
+      <div id="lista-datas"></div>
     </div>
   </div>
 
-  <!-- ================= TELA 4: RELATÓRIOS DA DATA ================= -->
+  <!-- TELA 4: RELATÓRIOS DA DATA -->
   <div id="screen-relatorios" class="screen">
     <div class="header">
       <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
       Relatórios da Data
       <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
-    <div class="container" id="lista-gestores-data">
-      <!-- Renderizado via JS -->
-    </div>
+    <div class="container" id="lista-gestores-data"></div>
   </div>
 
-
-  <!-- ================= MODAIS ================= -->
-  
-  <!-- Modal: Adicionar Período -->
+  <!-- MODAIS -->
   <div id="modal-add-periodo" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-add-periodo')">×</span>
       <h3>Novo Período</h3>
       <label>Data Inicial:</label><input type="date" id="per-inicio">
       <label>Data Final:</label><input type="date" id="per-fim">
-      <label>Turno:</label>
+      <label>Turno Inicial Padrão:</label>
       <select id="per-turno">
         <option value="A">Turno A</option>
         <option value="B">Turno B</option>
       </select>
-      <button class="btn-primary btn" onclick="salvarPeriodo()">Salvar</button>
+      <button class="btn-primary btn" onclick="salvarPeriodo()">Salvar Instantaneamente</button>
     </div>
   </div>
 
-  <!-- Modal: Controle (Tabela Tela Cheia) -->
   <div id="modal-controle" class="modal-overlay" style="background: var(--bg);">
     <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0;">
       <span class="close-modal" onclick="fecharModal('modal-controle')">×</span>
-      <h3>Controle Geral</h3>
-      <select id="controle-periodo-select" onchange="renderizarControle()"></select>
+      <h3>Matriz de Controle</h3>
+      <select id="controle-periodo-select" onchange="renderizarTabelaControle()"></select>
       <div style="overflow-x: auto;">
         <table>
           <thead><tr><th>Gestor</th><th>Data</th><th>Status</th></tr></thead>
@@ -198,7 +180,6 @@
     </div>
   </div>
 
-  <!-- Modal: Selecionar Turno ao clicar no Período -->
   <div id="modal-selecionar-turno" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-selecionar-turno')">×</span>
@@ -208,7 +189,6 @@
     </div>
   </div>
 
-  <!-- Modal: Criar Data e Marcar Checkboxes -->
   <div id="modal-add-data" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-add-data')">×</span>
@@ -224,7 +204,6 @@
     </div>
   </div>
 
-  <!-- Modal: Cadastro de Gestores (Lápis) -->
   <div id="modal-gestores-config" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-gestores-config')">×</span>
@@ -236,7 +215,6 @@
     </div>
   </div>
 
-  <!-- Modal: Add Gestor -->
   <div id="modal-add-gestor" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-add-gestor')">×</span>
@@ -246,7 +224,6 @@
     </div>
   </div>
 
-  <!-- Modal: Ações do Relatório (Scanner finalizado) -->
   <div id="modal-acoes" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-acoes')">×</span>
@@ -259,7 +236,6 @@
     </div>
   </div>
 
-  <!-- Modal: Histórico -->
   <div id="modal-historico" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-historico')">×</span>
@@ -268,24 +244,26 @@
     </div>
   </div>
 
-  <!-- ================= JAVASCRIPT ================= -->
   <script>
-    // ---------------------------------------------------------
-    // 1. CONFIGURAÇÃO DA API (URL Corrigida com HTTPS)
-    // ---------------------------------------------------------
     const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
-    // Variáveis Globais de Estado
-    let db = { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [] };
-    let offlineQueue = JSON.parse(localStorage.getItem('relatoriosQueue')) || [];
+    // ESTADO LOCAL INSTANTÂNEO
+    let db = JSON.parse(localStorage.getItem('relatoriosDB')) || { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [], nomes: [] };
     let loggedUserBarcode = null;
     let cameraScanner = null;
     let scanCallback = null;
     let context = { periodoId: null, turno: null, dataId: null, gestorId: null, scannedTargetBarcode: null };
 
-    // Navegação Inteligente (Histórico de Pastas)
     let historyStack = [];
     let currentScreen = 'screen-home';
+
+    function generateID() {
+      return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    }
+
+    function saveDBLocal() {
+      localStorage.setItem('relatoriosDB', JSON.stringify(db));
+    }
 
     function navegar(idTela) {
       if (currentScreen === idTela) return;
@@ -314,80 +292,80 @@
       fecharCamera();
     }
 
-    function abrirModal(id) { document.getElementById(id).style.display = 'block'; }
+    function abrirModal(id) {
+      if(id === 'modal-add-data') {
+        let div = document.getElementById('list-check-gestores');
+        div.innerHTML = '';
+        if(db.gestores) {
+          db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
+            div.innerHTML += `<label style="display:block; margin: 10px 0;"><input type="checkbox" value="${g.ID}"> ${g.Nome}</label>`;
+          });
+        }
+      }
+      document.getElementById(id).style.display = 'block';
+    }
+
     function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
 
-    // ---------------------------------------------------------
-    // 2. COMUNICAÇÃO JSONP (Bypassa Bloqueios Corporativos)
-    // ---------------------------------------------------------
-    function apiCall(action, payload) {
-      return new Promise((resolve) => {
-        if (!navigator.onLine) {
-          if (action !== 'sincronizar') {
-            offlineQueue.push({ action, payload, time: Date.now() });
-            localStorage.setItem('relatoriosQueue', JSON.stringify(offlineQueue));
-            alert("Salvo offline. Será sincronizado quando a internet voltar.");
+    // ENVIO EM SEGUNDO PLANO VIA JSONP
+    function sendInBackground(action, payload) {
+      if (!navigator.onLine) return;
+
+      const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
+      const script = document.createElement('script');
+
+      const timeoutId = setTimeout(() => {
+        document.getElementById('network-status').innerText = "Internet lenta... aguarde ou vá ao DP para consultar...";
+        cleanup();
+      }, 10000);
+
+      function cleanup() {
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        clearTimeout(timeoutId);
+      }
+
+      window[callbackName] = function(response) {
+        cleanup();
+        document.getElementById('network-status').innerText = "";
+        if (response && response.status === 'success' && action === 'sincronizar') {
+          // Atualiza dados vindos do servidor sem travar a tela
+          if(response.data) {
+            db = response.data;
+            saveDBLocal();
+            renderTelaAtual();
           }
-          resolve(null);
-          return;
         }
+      };
 
-        const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
-        const script = document.createElement('script');
-
-        const timeoutId = setTimeout(() => {
-          document.getElementById('network-status').innerText = "Internet lenta... aguarde ou vá ao DP para consultar...";
-          cleanup();
-          resolve(null);
-        }, 10000); // 10 Segundos de Timeout
-
-        function cleanup() {
-          delete window[callbackName];
-          if (script.parentNode) script.parentNode.removeChild(script);
-          clearTimeout(timeoutId);
-        }
-
-        window[callbackName] = function(response) {
-          cleanup();
-          document.getElementById('network-status').innerText = "";
-          if (response && response.status === 'success') {
-            resolve(response.data);
-          } else {
-            alert("Erro no servidor: " + (response ? response.message : "Resposta inválida"));
-            resolve(null);
-          }
-        };
-
-        const params = new URLSearchParams({
-          action: action,
-          payload: JSON.stringify(payload || {}),
-          callback: callbackName
-        });
-
-        script.src = `${API_URL}?${params.toString()}`;
-        script.onerror = function() {
-          cleanup();
-          alert("Erro de conexão com o servidor. Verifique com a TI local.");
-          resolve(null);
-        };
-
-        document.body.appendChild(script);
+      const params = new URLSearchParams({
+        action: action,
+        payload: JSON.stringify(payload || {}),
+        callback: callbackName
       });
+
+      script.src = `${API_URL}?${params.toString()}`;
+      script.onerror = function() {
+        cleanup();
+        document.getElementById('network-status').innerText = "Erro ao sincronizar em segundo plano.";
+      };
+
+      document.body.appendChild(script);
     }
 
-    async function syncInicial() {
-      let data = await apiCall('sincronizar', {});
-      if (data) { db = data; renderPeriodos(); }
+    function renderTelaAtual() {
+      if (currentScreen === 'screen-periodos') renderPeriodos();
+      else if (currentScreen === 'screen-datas') renderDatas();
+      else if (currentScreen === 'screen-relatorios') entrarData(context.dataId);
     }
 
-    // ---------------------------------------------------------
-    // 3. FLUXO DA CÂMERA (HTML5-QRCODE)
-    // ---------------------------------------------------------
+    // CÂMERA
     function iniciarLogin(modulo) {
-      abrirCamera("Escaneie seu crachá para confirmar a identidade e acessar o módulo.", (codigo) => {
+      abrirCamera("Escaneie seu crachá para acessar o sistema.", (codigo) => {
         loggedUserBarcode = codigo;
-        if(db.periodos.length === 0) syncInicial();
+        renderPeriodos();
         navegar('screen-periodos');
+        sendInBackground('sincronizar', {}); // Sincroniza em segundo plano ao logar
       });
     }
 
@@ -402,8 +380,8 @@
           fecharCamera();
           if (scanCallback) scanCallback(decodedText);
         },
-        (err) => { /* ignora quadros vazios */ }
-      ).catch(err => alert("O navegador bloqueou a câmera. Permita o acesso clicando no ícone do cadeado."));
+        (err) => {}
+      ).catch(err => alert("Câmera bloqueada. Permita o acesso nas configurações do navegador."));
     }
 
     function fecharCamera() {
@@ -413,45 +391,54 @@
       }
     }
 
-    // ---------------------------------------------------------
-    // 4. LÓGICA DE TELAS (Períodos, Datas, Relatórios)
-    // ---------------------------------------------------------
-    
-    // TELA 2: Períodos
+    // PERÍODOS
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos');
       div.innerHTML = '';
       if(!db.periodos) return;
       
       db.periodos.forEach(p => {
-        let inicioStr = p.Inicio ? String(p.Inicio).substring(0,10) : '';
-        let fimStr = p.Fim ? String(p.Fim).substring(0,10) : '';
-        let formatado = `De ${inicioStr} a ${fimStr}`;
+        let iStr = p.Inicio ? String(p.Inicio).substring(0,10) : '';
+        let fStr = p.Fim ? String(p.Fim).substring(0,10) : '';
+        let formatado = `De ${iStr} a ${fStr}`;
         
         div.innerHTML += `
           <div class="btn" style="cursor:default;">
             <span style="flex-grow:1; cursor:pointer;" onclick="preSelecionarPeriodo('${p.ID}')">${formatado}</span>
             <button class="icon-btn" onclick="editarPeriodo('${p.ID}')">✏️</button>
             <button class="icon-btn" style="color:var(--red);" onclick="excluirPeriodo('${p.ID}')">❌</button>
-          </div>
-        `;
+          </div>`;
       });
     }
 
-    async function salvarPeriodo() {
+    function salvarPeriodo() {
       let i = document.getElementById('per-inicio').value;
       let f = document.getElementById('per-fim').value;
       let t = document.getElementById('per-turno').value;
       if(!i || !f) return alert("Preencha as datas");
-      await apiCall('salvarPeriodo', { inicio: i, fim: f, turno: t });
+      
+      let newId = generateID();
+      let novoPer = { ID: newId, Inicio: i, Fim: f, Turno: t };
+      
+      // 1. Atualização Instantânea Local
+      db.periodos.push(novoPer);
+      saveDBLocal();
+      renderPeriodos();
       fecharModal('modal-add-periodo');
-      syncInicial();
+      
+      // 2. Envio em Segundo Plano
+      sendInBackground('salvarPeriodo', { id: newId, inicio: i, fim: f, turno: t });
     }
 
-    async function excluirPeriodo(id) {
-      if(confirm("Tem certeza de que deseja excluir este período por segurança?")) {
-        await apiCall('excluirPeriodo', { id: id });
-        syncInicial();
+    function excluirPeriodo(id) {
+      if(confirm("Confirma a exclusão deste período por segurança?")) {
+        // 1. Instantâneo
+        db.periodos = db.periodos.filter(p => p.ID !== id);
+        saveDBLocal();
+        renderPeriodos();
+        
+        // 2. Segundo Plano
+        sendInBackground('excluirPeriodo', { id: id });
       }
     }
 
@@ -468,7 +455,7 @@
       navegar('screen-datas');
     }
 
-    // TELA 3: Datas e Gestores
+    // DATAS
     function renderDatas() {
       let div = document.getElementById('lista-datas');
       div.innerHTML = '';
@@ -485,41 +472,47 @@
       calcularProgresso();
     }
 
-    document.querySelector('#modal-add-data').addEventListener('click', function(e) {
-      if(e.target === this) fecharModal('modal-add-data');
-    });
-
-    function abrirModal(id) {
-      if(id === 'modal-add-data') {
-        let div = document.getElementById('list-check-gestores');
-        div.innerHTML = '';
-        if(db.gestores) {
-          db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
-            div.innerHTML += `<label style="display:block; margin: 10px 0;"><input type="checkbox" value="${g.ID}"> ${g.Nome}</label>`;
-          });
-        }
-      }
-      document.getElementById(id).style.display = 'block';
-    }
-
-    async function salvarDataDiaria() {
+    function salvarDataDiaria() {
       let dataNova = document.getElementById('data-nova').value;
       if(!dataNova) return alert("Selecione a data");
       
+      let newId = generateID();
       let checks = document.querySelectorAll('#list-check-gestores input[type="checkbox"]');
-      let status = Array.from(checks).map(c => ({ idGestor: c.value, teve: c.checked }));
+      let statusList = Array.from(checks).map(c => ({ idGestor: c.value, teve: c.checked }));
       
-      await apiCall('salvarStatusDiario', { idPeriodo: context.periodoId, dataString: dataNova, gestoresStatus: status });
+      // 1. Instantâneo
+      db.datas.push({ ID: newId, ID_Periodo: context.periodoId, DataString: dataNova });
+      statusList.forEach(s => {
+        db.statusDiario.push({ ID_Data: newId, ID_Gestor: s.idGestor, TeveRelatorio: s.teve });
+      });
+      saveDBLocal();
+      renderDatas();
       fecharModal('modal-add-data');
-      syncInicial();
-      setTimeout(renderDatas, 1000);
+      
+      // 2. Segundo Plano
+      sendInBackground('salvarStatusDiario', { idData: newId, idPeriodo: context.periodoId, dataString: dataNova, gestoresStatus: statusList });
     }
 
     function calcularProgresso() {
-      document.getElementById('progress-bar').style.width = '30%';
-      document.getElementById('progress-text').innerText = 'Falta devolver: 30%';
+      if(!context.dataId || !db.statusDiario) return;
+      let total = db.statusDiario.filter(s => s.ID_Data === context.dataId && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE")).length;
+      if(total === 0) {
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('progress-text').innerText = 'Falta devolver: 0% (0)';
+        return;
+      }
+      let devolvidos = 0;
+      db.statusDiario.filter(s => s.ID_Data === context.dataId && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE")).forEach(s => {
+        let dev = db.registros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === s.ID_Gestor && r.Acao === 'Devolver');
+        if(dev) devolvidos++;
+      });
+      let faltam = total - devolvidos;
+      let pct = Math.round((faltam / total) * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-text').innerText = `Falta devolver: ${pct}% (${faltam} de ${total})`;
     }
 
+    // GESTORES
     function abrirGestoresConfig() {
       let div = document.getElementById('lista-config-gestores');
       div.innerHTML = '';
@@ -528,94 +521,160 @@
           div.innerHTML += `
             <div class="btn" style="padding: 10px; cursor: default;">
               <span style="flex-grow:1;">${g.Nome}</span>
-              <button class="icon-btn">✏️</button><button class="icon-btn" style="color:red;">❌</button>
+              <button class="icon-btn" onclick="excluirGestor('${g.ID}')" style="color:red;">❌</button>
             </div>`;
         });
       }
       abrirModal('modal-gestores-config');
     }
 
-    async function salvarNovoGestor() {
+    function salvarNovoGestor() {
       let nome = document.getElementById('nome-gestor').value;
       if(!nome) return alert("Digite o nome");
-      await apiCall('salvarGestor', { nome: nome, turno: context.turno });
+      let newId = generateID();
+      
+      // 1. Instantâneo
+      db.gestores.push({ ID: newId, Nome: nome, Turno: context.turno });
+      db.gestores.sort((a,b) => a.Nome.localeCompare(b.Nome));
+      saveDBLocal();
+      abrirGestoresConfig();
       fecharModal('modal-add-gestor');
-      syncInicial();
+      
+      // 2. Segundo Plano
+      sendInBackground('salvarGestor', { id: newId, nome: nome, turno: context.turno });
     }
 
-    // TELA 4: Relatórios da Data
+    function excluirGestor(id) {
+      if(confirm("Deseja remover este gestor?")) {
+        db.gestores = db.gestores.filter(g => g.ID !== id);
+        saveDBLocal();
+        abrirGestoresConfig();
+        sendInBackground('excluirGestor', { id: id });
+      }
+    }
+
+    // RELATÓRIOS DA DATA
     function entrarData(idData) {
       context.dataId = idData;
       let div = document.getElementById('lista-gestores-data');
       div.innerHTML = '';
       
       if(!db.statusDiario) return;
-      let statusData = db.statusDiario.filter(s => s.ID_Data === idData && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE"));
+      let statusData = db.statusDiario.filter(s => s.ID_Data === idData && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE" || s.TeveRelatorio === "true"));
       
       statusData.forEach(s => {
         let gestor = db.gestores.find(g => g.ID === s.ID_Gestor);
         if(!gestor) return;
 
         let historico = db.registros ? db.registros.filter(r => r.ID_Data === idData && r.ID_Gestor === gestor.ID) : [];
-        let corClasse = 'status-yellow';
-        if (historico.some(h => h.Acao === 'Devolver')) corClasse = 'status-green';
-        else if (historico.some(h => h.Acao === 'Entregar')) corClasse = 'status-red';
+        let corClasse = 'status-yellow'; // Teve, não entregue
+        if (historico.some(h => h.Acao === 'Devolver')) corClasse = 'status-green'; // Devolvido
+        else if (historico.some(h => h.Acao === 'Entregar')) corClasse = 'status-red'; // Entregue e não devolvido
 
         div.innerHTML += `<button class="btn ${corClasse}" onclick="escanearAcao('${gestor.ID}')">${gestor.Nome}</button>`;
       });
+      calcularProgresso();
       navegar('screen-relatorios');
     }
 
     function escanearAcao(idGestor) {
       context.gestorId = idGestor;
-      abrirCamera("Escaneie o código do crachá correspondente ao relatório selecionado.", (codigo) => {
+      abrirCamera("Escaneie o código do crachá para confirmar.", (codigo) => {
         context.scannedTargetBarcode = codigo;
         abrirModal('modal-acoes');
       });
     }
 
-    async function executarAcao(acao) {
+    function executarAcao(acao) {
       fecharModal('modal-acoes');
-      let res = await apiCall('registrarAcao', {
+      let dataHora = new Date().toLocaleString("pt-BR");
+      
+      // 1. Instantâneo Local
+      db.registros.push({
+        ID_Data: context.dataId,
+        ID_Gestor: context.gestorId,
+        Acao: acao,
+        CodigoLido: context.scannedTargetBarcode,
+        ResponsavelLogin: loggedUserBarcode,
+        DataHora: dataHora
+      });
+      saveDBLocal();
+      entrarData(context.dataId); // Atualiza cor do botão na hora
+      
+      // 2. Segundo Plano
+      sendInBackground('registrarAcao', {
         idData: context.dataId,
         idGestor: context.gestorId,
         acao: acao,
         codigoLido: context.scannedTargetBarcode,
-        responsavel: loggedUserBarcode
+        responsavel: loggedUserBarcode,
+        dataHora: dataHora
       });
-      if(res) {
-        alert(`Ação registrada com sucesso: ${res.dataHora}`);
-        syncInicial();
-        setTimeout(() => entrarData(context.dataId), 1000);
-      }
     }
 
-    async function consultarHistorico() {
+    function consultarHistorico() {
       fecharModal('modal-acoes');
-      document.getElementById('conteudo-historico').innerHTML = "Buscando...";
+      let historico = db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
       abrirModal('modal-historico');
       
-      let historico = await apiCall('verificarHistorico', { idData: context.dataId, idGestor: context.gestorId });
       if(!historico || historico.length === 0) {
-        document.getElementById('conteudo-historico').innerHTML = "Nenhum histórico.";
+        document.getElementById('conteudo-historico').innerHTML = "Nenhum histórico registrado.";
         return;
       }
       
-      let html = '<table><thead><tr><th>Ação</th><th>Alvo</th><th>Responsável</th><th>Data/Hora</th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>Ação</th><th>Código Lido</th><th>Responsável</th><th>Data/Hora</th></tr></thead><tbody>';
       historico.forEach(h => {
-        let cor = h.acao === 'Devolver' ? 'var(--green)' : 'var(--red)';
-        html += `<tr><td style="color:${cor}; font-weight:bold;">${h.acao}</td><td>${h.alvo}</td><td>${h.responsavel}</td><td>${h.dataHora}</td></tr>`;
+        let cor = h.Acao === 'Devolver' ? 'var(--green)' : 'var(--red)';
+        html += `<tr><td style="color:${cor}; font-weight:bold;">${h.Acao}</td><td>${h.CodigoLido}</td><td>${h.ResponsavelLogin}</td><td>${h.DataHora}</td></tr>`;
       });
       html += '</tbody></table>';
       document.getElementById('conteudo-historico').innerHTML = html;
     }
 
-    function renderizarControle() {
-      document.getElementById('tb-controle').innerHTML = "<tr><td colspan='3'>Matriz de controle carregada.</td></tr>";
+    function abrirControle() {
+      let sel = document.getElementById('controle-periodo-select');
+      sel.innerHTML = '';
+      db.periodos.forEach(p => {
+        sel.innerHTML += `<option value="${p.ID}">Período: ${p.Inicio.substring(0,10)} a ${p.Fim.substring(0,10)}</option>`;
+      });
+      renderizarTabelaControle();
+      abrirModal('modal-controle');
     }
 
-    // Inicializa carregamento
-    syncInicial();
+    function renderizarTabelaControle() {
+      let perId = document.getElementById('controle-periodo-select').value;
+      let tb = document.getElementById('tb-controle');
+      tb.innerHTML = '';
+      
+      let datasPer = db.datas.filter(d => d.ID_Periodo === perId);
+      datasPer.forEach(d => {
+        let statusList = db.statusDiario.filter(s => s.ID_Data === d.ID);
+        statusList.forEach(s => {
+          let gestor = db.gestores.find(g => g.ID === s.ID_Gestor);
+          if(!gestor) return;
+          
+          let teve = s.TeveRelatorio === true || s.TeveRelatorio === "TRUE" || s.TeveRelatorio === "true";
+          let cor = '#bdc3c7'; // Cinza: Não teve
+          let texto = 'Não teve';
+          
+          if(teve) {
+            let hist = db.registros.filter(r => r.ID_Data === d.ID && r.ID_Gestor === gestor.ID);
+            if(hist.some(h => h.Acao === 'Devolver')) { cor = '#2ecc71'; texto = 'Devolvido'; }
+            else if(hist.some(h => h.Acao === 'Entregar')) { cor = '#e74c3c'; texto = 'Entregue / Ñ Devolvido'; }
+            else { cor = '#f1c40f'; texto = 'Teve / Ñ Entregue'; }
+          }
+
+          tb.innerHTML += `<tr>
+            <td>${gestor.Nome}</td>
+            <td>${d.DataString}</td>
+            <td style="background-color: ${cor}; font-weight: bold; color: ${cor === '#f1c40f' ? 'black' : 'white'};">${texto}</td>
+          </tr>`;
+        });
+      });
+    }
+
+    // Inicialização silenciosa em segundo plano
+    sendInBackground('sincronizar', {});
   </script>
 </body>
 </html>
