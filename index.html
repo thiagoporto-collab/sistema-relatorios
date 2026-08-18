@@ -61,14 +61,14 @@
       background: var(--card-bg); width: 90%; max-width: 500px; margin: 8% auto;
       padding: 20px; border-radius: 12px; position: relative; max-height: 85vh; overflow-y: auto;
     }
-    .close-modal { position: absolute; right: 15px; top: 15px; font-size: 1.5rem; cursor: pointer; color: var(--text-light);}
+    .close-modal { position: absolute; right: 15px; top: 15px; font-size: 1.8rem; cursor: pointer; color: var(--text-light); font-weight: bold; line-height: 1;}
     
     .progress-bg { background: #E2E8F0; height: 12px; border-radius: 6px; margin-bottom: 5px; overflow: hidden; }
     .progress-fill { background: var(--red); height: 100%; border-radius: 6px; transition: width 0.3s; }
     .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; font-weight: bold;}
 
     #reader { width: 100%; border: 3px solid var(--secondary); border-radius: 8px; }
-    .toast-network { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; }
+    .toast-network { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; min-height: 20px;}
 
     input[type="text"], input[type="date"], select {
       width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #CBD5E0; border-radius: 6px; box-sizing: border-box;
@@ -162,12 +162,13 @@
     </div>
   </div>
 
+  <!-- Modal Controle Geral com botão 'X' -->
   <div id="modal-controle" class="modal-overlay" style="background: var(--bg);">
-    <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0;">
-      <span class="close-modal" onclick="fecharModal('modal-controle')">×</span>
-      <h3>Matriz de Controle Geral</h3>
+    <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 25px 20px;">
+      <span class="close-modal" onclick="fecharModal('modal-controle')" style="right: 20px; top: 20px; font-size: 2.2rem; color: var(--red);">×</span>
+      <h3 style="margin-top: 0;">Matriz de Controle Geral</h3>
       <select id="controle-periodo-select" onchange="renderizarTabelaControle()"></select>
-      <div style="overflow-x: auto;">
+      <div style="overflow-x: auto; margin-top: 15px;">
         <table>
           <thead><tr><th>Gestor</th><th>Data</th><th>Status</th></tr></thead>
           <tbody id="tb-controle"></tbody>
@@ -231,6 +232,7 @@
         <button class="btn btn-action" style="background: var(--green);" onclick="executarAcao('Devolver')">DEVOLVER</button>
       </div>
       <button class="btn" style="background: var(--gray); color: white; width: 100%; justify-content: center;" onclick="consultarHistorico()">Verificar Histórico</button>
+      <p id="consultar-toast" class="toast-network"></p>
     </div>
   </div>
 
@@ -263,9 +265,10 @@
       localStorage.setItem('relatoriosDB', JSON.stringify(db));
     }
 
-    function formatDateBR(dateStr) {
-      if (!dateStr) return '';
-      let str = String(dateStr).substring(0, 10);
+    function formatDateBR(dateVal) {
+      if (!dateVal) return '';
+      let str = String(dateVal).trim();
+      if (str.includes('T')) str = str.split('T')[0];
       let parts = str.split('-');
       if (parts.length === 3) {
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -328,6 +331,7 @@
       document.getElementById(id).style.display = 'none'; 
       if(id === 'modal-add-periodo') document.getElementById('edit-periodo-id').value = '';
       if(id === 'modal-add-gestor') document.getElementById('edit-gestor-id').value = '';
+      if(id === 'modal-acoes') document.getElementById('consultar-toast').innerText = '';
     }
 
     // ENVIO SEGUNDO PLANO
@@ -337,20 +341,13 @@
       const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
       const script = document.createElement('script');
 
-      const timeoutId = setTimeout(() => {
-        document.getElementById('network-status').innerText = "Internet lenta... aguarde ou vá ao DP para consultar...";
-        cleanup();
-      }, 10000);
-
       function cleanup() {
         delete window[callbackName];
         if (script.parentNode) script.parentNode.removeChild(script);
-        clearTimeout(timeoutId);
       }
 
       window[callbackName] = function(response) {
         cleanup();
-        document.getElementById('network-status').innerText = "";
         if (response && response.status === 'success' && action === 'sincronizar') {
           if(response.data) {
             db = response.data;
@@ -367,11 +364,7 @@
       });
 
       script.src = `${API_URL}?${params.toString()}`;
-      script.onerror = function() {
-        cleanup();
-        document.getElementById('network-status').innerText = "Erro ao sincronizar em segundo plano.";
-      };
-
+      script.onerror = function() { cleanup(); };
       document.body.appendChild(script);
     }
 
@@ -413,7 +406,7 @@
       }
     }
 
-    // PERÍODOS (Válido para Turno A e Turno B)
+    // PERÍODOS
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos');
       div.innerHTML = '';
@@ -490,7 +483,7 @@
       navegar('screen-datas');
     }
 
-    // DATAS
+    // DATAS COM STATUS E PORCENTAGEM (Teve / Devolvido)
     function renderDatas() {
       let div = document.getElementById('lista-datas');
       div.innerHTML = '';
@@ -502,9 +495,38 @@
       }
       
       datasFiltradas.forEach(d => {
+        // Cálculo do status e porcentagem da data
+        let statusList = db.statusDiario.filter(s => s.ID_Data === d.ID && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE" || s.TeveRelatorio === "true"));
+        let totalTeve = statusList.length;
+        let entreguesCount = 0;
+        let devolvidosCount = 0;
+
+        statusList.forEach(s => {
+          let hist = db.registros ? db.registros.filter(r => r.ID_Data === d.ID && r.ID_Gestor === s.ID_Gestor) : [];
+          if(hist.some(h => h.Acao === 'Devolver')) { devolvidosCount++; entreguesCount++; }
+          else if(hist.some(h => h.Acao === 'Entregar')) { entreguesCount++; }
+        });
+
+        let corClasse = 'status-gray'; // Não teve / 0 relatórios
+        let pctText = '(0/0 - 0%)';
+
+        if(totalTeve > 0) {
+          let pct = Math.round((devolvidosCount / totalTeve) * 100);
+          pctText = `(${devolvidosCount}/${totalTeve} - ${pct}%)`;
+
+          if(devolvidosCount === totalTeve) {
+            corClasse = 'status-green'; // Todos devolvidos
+          } else if(entreguesCount > devolvidosCount) {
+            corClasse = 'status-red'; // Entregue e não devolvido
+          } else {
+            corClasse = 'status-yellow'; // Teve mas não entregue
+          }
+        }
+
         div.innerHTML += `
-          <button class="btn status-gray" onclick="entrarData('${d.ID}')">
-            📂 Data: ${d.DataString}
+          <button class="btn ${corClasse}" onclick="entrarData('${d.ID}')">
+            <span>📂 Data: ${d.DataString}</span>
+            <span style="font-size:0.85rem; color:var(--text);">${pctText}</span>
           </button>`;
       });
       calcularProgresso();
@@ -535,25 +557,32 @@
     }
 
     function calcularProgresso() {
-      if(!context.dataId || !db.statusDiario) return;
-      let total = db.statusDiario.filter(s => s.ID_Data === context.dataId && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE" || s.TeveRelatorio === "true")).length;
-      if(total === 0) {
+      if(!context.periodoId || !db.datas || !db.statusDiario) return;
+      let datasPer = db.datas.filter(d => d.ID_Periodo === context.periodoId);
+      let totalTeve = 0;
+      let totalFaltaDevolver = 0;
+
+      datasPer.forEach(d => {
+        let statusList = db.statusDiario.filter(s => s.ID_Data === d.ID && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE" || s.TeveRelatorio === "true"));
+        statusList.forEach(s => {
+          totalTeve++;
+          let dev = db.registros.some(r => r.ID_Data === d.ID && r.ID_Gestor === s.ID_Gestor && r.Acao === 'Devolver');
+          if(!dev) totalFaltaDevolver++;
+        });
+      });
+
+      if(totalTeve === 0) {
         document.getElementById('progress-bar').style.width = '0%';
         document.getElementById('progress-text').innerText = 'Falta devolver: 0% (0)';
         return;
       }
-      let devolvidos = 0;
-      db.statusDiario.filter(s => s.ID_Data === context.dataId && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE" || s.TeveRelatorio === "true")).forEach(s => {
-        let dev = db.registros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === s.ID_Gestor && r.Acao === 'Devolver');
-        if(dev) devolvidos++;
-      });
-      let faltam = total - devolvidos;
-      let pct = Math.round((faltam / total) * 100);
+
+      let pct = Math.round((totalFaltaDevolver / totalTeve) * 100);
       document.getElementById('progress-bar').style.width = pct + '%';
-      document.getElementById('progress-text').innerText = `Falta devolver: ${pct}% (${faltam} de ${total})`;
+      document.getElementById('progress-text').innerText = `Falta devolver: ${pct}% (${totalFaltaDevolver} de ${totalTeve})`;
     }
 
-    // GESTORES (Exibe TODOS os gestores instantaneamente)
+    // GESTORES
     function abrirGestoresConfig() {
       let div = document.getElementById('lista-config-gestores');
       div.innerHTML = '';
@@ -610,7 +639,7 @@
       }
     }
 
-    // RELATÓRIOS DA DATA (Exibe apenas quem TEVE relatório na data)
+    // RELATÓRIOS DA DATA
     function entrarData(idData) {
       context.dataId = idData;
       let div = document.getElementById('lista-gestores-data');
@@ -671,23 +700,58 @@
       });
     }
 
+    // CONSULTA COM TIMEOUT DE 10 SEGUNDOS EXCLUSIVO
     function consultarHistorico() {
-      fecharModal('modal-acoes');
-      let historico = db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
-      abrirModal('modal-historico');
+      let toast = document.getElementById('consultar-toast');
+      toast.innerText = "Consultando servidor...";
       
-      if(!historico || historico.length === 0) {
-        document.getElementById('conteudo-historico').innerHTML = "Nenhum histórico registrado.";
-        return;
-      }
-      
-      let html = '<table><thead><tr><th>Ação</th><th>Código Lido</th><th>Responsável</th><th>Data/Hora</th></tr></thead><tbody>';
-      historico.forEach(h => {
-        let cor = h.Acao === 'Devolver' ? 'var(--green)' : 'var(--red)';
-        html += `<tr><td style="color:${cor}; font-weight:bold;">${h.Acao}</td><td>${h.CodigoLido}</td><td>${h.ResponsavelLogin}</td><td>${h.DataHora}</td></tr>`;
+      let timer = setTimeout(() => {
+        toast.innerText = "Internet lenta... aguarde ou vá ao DP para consultar...";
+      }, 10000);
+
+      const callbackName = 'jsonp_cb_hist_' + Math.round(100000 * Math.random());
+      const script = document.createElement('script');
+
+      window[callbackName] = function(response) {
+        clearTimeout(timer);
+        toast.innerText = "";
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        
+        fecharModal('modal-acoes');
+        abrirModal('modal-historico');
+        
+        let historico = (response && response.status === 'success') ? response.data : db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
+        
+        if(!historico || historico.length === 0) {
+          document.getElementById('conteudo-historico').innerHTML = "<p>Nenhum histórico registrado.</p>";
+          return;
+        }
+        
+        let html = '<table><thead><tr><th>Ação</th><th>Responsável</th><th>Data/Hora</th></tr></thead><tbody>';
+        historico.forEach(h => {
+          let acaoStr = h.acao || h.Acao;
+          let respStr = h.responsavel || h.ResponsavelLogin;
+          let dhStr = h.dataHora || h.DataHora;
+          let cor = acaoStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
+          html += `<tr><td style="color:${cor}; font-weight:bold;">${acaoStr}</td><td>${respStr}</td><td>${dhStr}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        document.getElementById('conteudo-historico').innerHTML = html;
+      };
+
+      const params = new URLSearchParams({
+        action: 'verificarHistorico',
+        payload: JSON.stringify({ idData: context.dataId, idGestor: context.gestorId }),
+        callback: callbackName
       });
-      html += '</tbody></table>';
-      document.getElementById('conteudo-historico').innerHTML = html;
+
+      script.src = `${API_URL}?${params.toString()}`;
+      script.onerror = function() {
+        clearTimeout(timer);
+        toast.innerText = "Falha na conexão.";
+      };
+      document.body.appendChild(script);
     }
 
     function abrirControle() {
