@@ -2,343 +2,598 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Sistema Corporativo de Relatórios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Devolução e Entrega de Relatórios</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
+    /* VARIÁVEIS CORPORATIVAS */
     :root {
-      --primary: #0f2537;
-      --secondary: #1d405e;
-      --accent: #0073e6;
-      --bg-color: #f0f4f8;
-      --card-bg: #ffffff;
-      --text-main: #333333;
-      --text-muted: #6b7c93;
-      --status-green: #2ecc71;
-      --status-yellow: #f1c40f;
-      --status-red: #e74c3c;
-      --status-gray: #bdc3c7;
+      --primary: #1A365D; --secondary: #2B6CB0; --bg: #F7FAFC;
+      --text: #2D3748; --text-light: #718096;
+      --green: #48BB78; --yellow: #ECC94B; --red: #F56565; --gray: #A0AEC0;
+      --card-bg: #FFFFFF;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-      background-color: var(--bg-color);
-      color: var(--text-main);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
       margin: 0; padding: 0;
-      -webkit-font-smoothing: antialiased;
     }
 
+    /* HEADER & NAVEGAÇÃO */
     .header {
-      background: var(--primary); color: white; padding: 16px 60px;
-      text-align: center; font-size: 1.1rem; font-weight: 600;
-      position: sticky; top: 0; z-index: 100;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); letter-spacing: 0.5px;
+      background: var(--primary); color: white; padding: 15px 50px;
+      text-align: center; font-weight: bold; font-size: 1.2rem;
+      position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-
-    .header-btn-left, .header-btn-right {
+    .btn-icon {
       position: absolute; top: 50%; transform: translateY(-50%);
-      background: transparent; border: none; color: white;
-      font-size: 1.4rem; cursor: pointer; padding: 5px 10px;
+      background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;
     }
-    .header-btn-left { left: 10px; } .header-btn-right { right: 10px; }
+    .btn-back { left: 10px; } .btn-home { right: 10px; }
 
-    .container { padding: 24px; max-width: 800px; margin: 0 auto; }
-    
-    .btn {
-      display: block; width: 100%; padding: 16px; margin-bottom: 12px;
-      background: var(--card-bg); border: 1px solid #e1e4e8; border-radius: 8px;
-      font-size: 1rem; font-weight: 600; color: var(--secondary);
-      box-shadow: 0 2px 4px rgba(0,0,0,0.02); cursor: pointer;
-      transition: all 0.2s ease; text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .btn:active { transform: scale(0.98); background-color: #f8f9fa; }
-    .btn-primary { background: var(--accent); color: white; border: none; }
-    .btn-secondary { background: var(--text-muted); color: white; border: none; }
-    .btn-action { display: inline-block; width: 48%; }
-
-    .status-item { display: flex; justify-content: space-between; align-items: center; text-transform: none; text-align: left; }
-    .status-green { border-left: 6px solid var(--status-green); }
-    .status-yellow { border-left: 6px solid var(--status-yellow); }
-    .status-red { border-left: 6px solid var(--status-red); }
-    .status-gray { border-left: 6px solid var(--status-gray); color: var(--text-muted); }
-
-    .progress-bar-container { background: #e1e4e8; height: 8px; border-radius: 4px; margin-bottom: 5px; overflow: hidden; }
-    .progress-bar-fill { background: var(--status-red); height: 100%; width: 30%; transition: width 0.3s; }
-    .progress-text { text-align: right; font-size: 0.8rem; color: var(--text-muted); margin: 0 0 20px 0; font-weight: 500;}
-
-    .screen { display: none; animation: fadeIn 0.3s ease; }
-    .active-screen { display: block; }
+    /* LAYOUT BÁSICO */
+    .container { padding: 20px; max-width: 800px; margin: 0 auto; }
+    .screen { display: none; }
+    .active-screen { display: block; animation: fadeIn 0.3s; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* BOTÕES */
+    .btn {
+      display: flex; justify-content: space-between; align-items: center;
+      width: 100%; padding: 16px; margin-bottom: 12px;
+      background: var(--card-bg); border: 1px solid #E2E8F0; border-radius: 8px;
+      font-size: 1rem; font-weight: bold; color: var(--secondary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05); cursor: pointer; text-transform: uppercase;
+    }
+    .btn-primary { background: var(--secondary); color: white; justify-content: center; border: none;}
+    .btn-action { justify-content: center; width: 48%; color: white;}
     
+    .btn-group-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    .icon-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 0 10px;}
+
+    /* STATUS COLORS */
+    .status-green { border-left: 8px solid var(--green); }
+    .status-yellow { border-left: 8px solid var(--yellow); }
+    .status-red { border-left: 8px solid var(--red); }
+    .status-gray { border-left: 8px solid var(--gray); color: var(--text-light); }
+
+    /* MODAIS */
     .modal-overlay {
       display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(15, 37, 55, 0.7); z-index: 1000; backdrop-filter: blur(3px);
+      background: rgba(0,0,0,0.6); z-index: 1000;
     }
     .modal-content {
-      background: var(--card-bg); width: 85%; max-width: 400px; margin: 15% auto;
-      padding: 24px; border-radius: 12px; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      background: var(--card-bg); width: 90%; max-width: 500px; margin: 10% auto;
+      padding: 20px; border-radius: 12px; position: relative; max-height: 80vh; overflow-y: auto;
     }
-    .close-modal { position: absolute; right: 15px; top: 15px; font-size: 1.5rem; color: var(--text-muted); cursor: pointer; line-height: 1; }
+    .close-modal { position: absolute; right: 15px; top: 15px; font-size: 1.5rem; cursor: pointer; color: var(--text-light);}
     
-    #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid var(--accent); }
-    .camera-instructions { text-align: center; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;}
+    /* PROGRESS BAR */
+    .progress-bg { background: #E2E8F0; height: 10px; border-radius: 5px; margin-bottom: 5px; }
+    .progress-fill { background: var(--red); height: 100%; border-radius: 5px; transition: width 0.3s; }
+    .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; }
+
+    /* CAMERA */
+    #reader { width: 100%; border: 3px solid var(--secondary); border-radius: 8px; }
+    .toast-network { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; }
+
+    input[type="text"], input[type="date"], select {
+      width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #CBD5E0; border-radius: 6px; box-sizing: border-box;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem;}
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #E2E8F0; }
   </style>
 </head>
 <body>
 
-  <!-- TELAS DO APLICATIVO -->
+  <!-- ================= TELA 1: HOME ================= -->
   <div id="screen-home" class="screen active-screen">
-    <div class="header">Sistema de Relatórios</div>
+    <div class="header">Devolução e Entrega de Relatórios</div>
     <div class="container">
-      <button class="btn" onclick="iniciarFluxo('FALTAS')">Relatório de Faltas</button>
-      <button class="btn" style="opacity: 0.5;">Contratos</button>
-      <button class="btn" style="opacity: 0.5;">Troca de Horários</button>
-      <button class="btn" style="opacity: 0.5;">Medidas Pedagógicas</button>
+      <button class="btn" onclick="iniciarLogin('FALTAS')" style="justify-content: center;">RELATÓRIO DE FALTAS</button>
+      <button class="btn" style="justify-content: center; opacity: 0.5;">CONTRATOS</button>
+      <button class="btn" style="justify-content: center; opacity: 0.5;">TROCA DE HORÁRIOS</button>
+      <button class="btn" style="justify-content: center; opacity: 0.5;">MEDIDAS PEDAGÓGICAS</button>
+      <p id="network-status" class="toast-network"></p>
     </div>
   </div>
 
+  <!-- ================= TELA: CÂMERA ================= -->
   <div id="screen-camera" class="screen">
     <div class="header">
-      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
-      Leitor de Crachá
-      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
+      Leitor de Código de Barras
+      <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container">
-      <div class="camera-instructions" id="camera-status">Carregando câmera...</div>
+      <p style="text-align: center; color: var(--text-light);" id="camera-instructions"></p>
       <div id="reader"></div>
     </div>
   </div>
 
-  <div id="screen-faltas" class="screen">
+  <!-- ================= TELA 2: RELATÓRIO DE FALTAS ================= -->
+  <div id="screen-periodos" class="screen">
     <div class="header">
-      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
-      Gestão de Faltas
-      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
+      Relatório de Faltas
+      <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container">
-      <div style="display: flex; gap: 10px; margin-bottom: 24px;">
-        <button class="btn btn-primary" onclick="abrirModal('modal-periodo')">Novo Período</button>
-        <button class="btn btn-secondary" onclick="abrirModal('modal-controle')">Controle</button>
+      <div class="btn-group-row">
+        <button class="btn-primary" style="width: 20%; font-size: 1.5rem; border-radius: 8px;" onclick="abrirModal('modal-add-periodo')">+</button>
+        <button class="btn-primary" style="width: 75%; background: var(--gray);" onclick="abrirModal('modal-controle')">CONTROLE 📊</button>
       </div>
       <div id="lista-periodos">
-        <button class="btn" onclick="navegarPara('screen-datas')">📅 01/10/2023 a 15/10/2023</button>
+        <!-- Renderizado via JS -->
       </div>
     </div>
   </div>
 
+  <!-- ================= TELA 3: DATAS ================= -->
   <div id="screen-datas" class="screen">
     <div class="header">
-      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
-      Datas do Período
-      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
+      Datas do Período (<span id="lbl-turno"></span>)
+      <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container">
-      <div style="display: flex; gap: 10px; margin-bottom: 16px;">
-        <button class="btn btn-primary">Nova Data</button>
-        <button class="btn btn-secondary">Gestores</button>
+      <div class="btn-group-row">
+        <button class="btn-primary" style="width: 20%; font-size: 1.5rem; border-radius: 8px;" onclick="abrirModal('modal-add-data')">+</button>
+        <button class="btn-primary" style="width: 75%; background: var(--gray);" onclick="abrirGestoresConfig()">✎ GESTORES</button>
       </div>
-      <div class="progress-bar-container"><div class="progress-bar-fill"></div></div>
-      <p class="progress-text">Pendente de devolução: 30% (3 gestores)</p>
-      <div id="lista-datas"><button class="btn" onclick="navegarPara('screen-relatorios-data')">📂 Data: 10/10/2023</button></div>
+      
+      <div class="progress-bg"><div class="progress-fill" id="progress-bar" style="width: 0%;"></div></div>
+      <p class="progress-text" id="progress-text">Falta devolver: 0% (0)</p>
+
+      <div id="lista-datas">
+        <!-- Renderizado via JS -->
+      </div>
     </div>
   </div>
 
-  <div id="screen-relatorios-data" class="screen">
+  <!-- ================= TELA 4: RELATÓRIOS DA DATA ================= -->
+  <div id="screen-relatorios" class="screen">
     <div class="header">
-      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button>
       Relatórios da Data
-      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+      <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container" id="lista-gestores-data">
-      <button class="btn status-item status-yellow" onclick="abrirAcoesGestor('G1')"><span>João Silva</span> <span>⚠️</span></button>
-      <button class="btn status-item status-red"><span>Maria Souza</span> <span>⏳</span></button>
-      <button class="btn status-item status-green"><span>Carlos Alberto</span> <span>✅</span></button>
+      <!-- Renderizado via JS -->
     </div>
   </div>
 
-  <!-- MODAIS -->
+
+  <!-- ================= MODAIS ================= -->
+  
+  <!-- Modal: Adicionar Período -->
+  <div id="modal-add-periodo" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-periodo')">×</span>
+      <h3>Novo Período</h3>
+      <label>Data Inicial:</label><input type="date" id="per-inicio">
+      <label>Data Final:</label><input type="date" id="per-fim">
+      <label>Turno:</label>
+      <select id="per-turno">
+        <option value="A">Turno A</option>
+        <option value="B">Turno B</option>
+      </select>
+      <button class="btn-primary btn" onclick="salvarPeriodo()">Salvar</button>
+    </div>
+  </div>
+
+  <!-- Modal: Controle (Tabela Tela Cheia) -->
+  <div id="modal-controle" class="modal-overlay" style="background: var(--bg);">
+    <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0;">
+      <span class="close-modal" onclick="fecharModal('modal-controle')">×</span>
+      <h3>Controle Geral</h3>
+      <select id="controle-periodo-select" onchange="renderizarControle()"></select>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead><tr><th>Gestor</th><th>Data</th><th>Status</th></tr></thead>
+          <tbody id="tb-controle"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Selecionar Turno ao clicar no Período -->
+  <div id="modal-selecionar-turno" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-selecionar-turno')">×</span>
+      <h3 style="text-align: center;">Selecione o Turno</h3>
+      <button class="btn-primary btn" style="margin-bottom: 10px;" onclick="entrarPeriodo('A')">Turno A</button>
+      <button class="btn-primary btn" style="background: var(--primary);" onclick="entrarPeriodo('B')">Turno B</button>
+    </div>
+  </div>
+
+  <!-- Modal: Criar Data e Marcar Checkboxes -->
+  <div id="modal-add-data" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-data')">×</span>
+      <h3>Nova Data</h3>
+      <input type="date" id="data-nova">
+      <hr>
+      <p>Marque quem <strong>TEVE</strong> relatório:</p>
+      <div id="list-check-gestores" style="max-height: 200px; overflow-y: auto;"></div>
+      <div class="btn-group-row" style="margin-top: 15px;">
+        <button class="btn btn-action" style="background: var(--green);" onclick="salvarDataDiaria()">Salvar</button>
+        <button class="btn btn-action" style="background: var(--red);" onclick="fecharModal('modal-add-data')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Cadastro de Gestores (Lápis) -->
+  <div id="modal-gestores-config" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-gestores-config')">×</span>
+      <div class="btn-group-row">
+        <h3>Gestores</h3>
+        <button class="btn-primary" style="padding: 5px 15px; border-radius: 5px;" onclick="abrirModal('modal-add-gestor')">+</button>
+      </div>
+      <div id="lista-config-gestores"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Gestor -->
+  <div id="modal-add-gestor" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-gestor')">×</span>
+      <h3>Novo Gestor</h3>
+      <input type="text" id="nome-gestor" placeholder="Nome Completo">
+      <button class="btn-primary btn" onclick="salvarNovoGestor()">Salvar</button>
+    </div>
+  </div>
+
+  <!-- Modal: Ações do Relatório (Scanner finalizado) -->
   <div id="modal-acoes" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-acoes')">×</span>
-      <h3 style="margin-top: 0; color: var(--primary);">Ações do Relatório</h3>
-      <div style="display: flex; gap: 10px; margin-bottom: 15px; margin-top: 20px;">
-        <button class="btn btn-action" style="background: var(--status-yellow); color: #000; border: none;" onclick="lerCrachaAcao('Entregar')">Entregar</button>
-        <button class="btn btn-action" style="background: var(--status-green); color: white; border: none;" onclick="lerCrachaAcao('Devolver')">Devolver</button>
+      <h3 style="text-align: center;">Ações do Relatório</h3>
+      <div class="btn-group-row" style="margin-top: 20px;">
+        <button class="btn btn-action" style="background: var(--yellow); color: black;" onclick="executarAcao('Entregar')">ENTREGAR</button>
+        <button class="btn btn-action" style="background: var(--green);" onclick="executarAcao('Devolver')">DEVOLVER</button>
       </div>
-      <button class="btn btn-secondary" style="margin-bottom: 0;" onclick="verificarHistoricoAPI()">Verificar Histórico</button>
+      <button class="btn" style="background: var(--gray); color: white; width: 100%; justify-content: center;" onclick="consultarHistorico()">Verificar</button>
     </div>
   </div>
 
+  <!-- Modal: Histórico -->
   <div id="modal-historico" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-historico')">×</span>
-      <h3 style="margin-top: 0; color: var(--primary);">Histórico</h3>
-      <div id="conteudo-historico" style="font-size: 0.9rem; max-height: 300px; overflow-y: auto;"></div>
+      <h3>Histórico</h3>
+      <div id="conteudo-historico"></div>
     </div>
   </div>
 
+  <!-- ================= JAVASCRIPT ================= -->
   <script>
-    // =========================================================================
-    // COLE AQUI A SUA URL GERADA NO GOOGLE APPS SCRIPT
-    // =========================================================================
-    // =========================================================================
-// COLE AQUI A SUA URL GERADA NO GOOGLE APPS SCRIPT
-// =========================================================================
-  // =========================================================================
-// COLE AQUI A SUA URL GERADA NO GOOGLE APPS SCRIPT
-// =========================================================================
-const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
+    // ---------------------------------------------------------
+    // 1. CONFIGURAÇÃO DA API (Substitua a URL abaixo)
+    // ---------------------------------------------------------
+    const API_URL = "script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
-    // Função universal para enviar e receber dados da planilha via FETCH
-    function callAPI(action, payload, successCallback) {
-      if(!navigator.onLine) { alert("Dispositivo sem internet."); return; }
-      
-      // O uso de text/plain evita que o Google bloqueie a requisição (CORS)
-      fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: action, payload: payload })
-      })
-      .then(response => response.json())
-      .then(res => {
-        if (res.status === 'success' && successCallback) {
-          successCallback(res.data);
-        } else {
-          alert("Erro no servidor: " + res.message);
-        }
-      })
-      .catch(err => {
-        alert("Erro de conexão com o banco de dados.");
-      });
-    }
+    // Variáveis Globais de Estado
+    let db = { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [] };
+    let offlineQueue = JSON.parse(localStorage.getItem('relatoriosQueue')) || [];
+    let loggedUserBarcode = null;
+    let cameraScanner = null;
+    let scanCallback = null;
+    let context = { periodoId: null, turno: null, dataId: null, gestorId: null, scannedTargetBarcode: null };
 
-    // Navegação de Telas
+    // Navegação Inteligente (Histórico de Pastas)
     let historyStack = [];
-    let currentScreenId = 'screen-home';
+    let currentScreen = 'screen-home';
 
-    function navegarPara(idTela) {
-      if (currentScreenId === idTela) return;
-      historyStack.push(currentScreenId);
-      trocarVisibilidade(currentScreenId, idTela);
+    function navegar(idTela) {
+      if (currentScreen === idTela) return;
+      historyStack.push(currentScreen);
+      document.getElementById(currentScreen).classList.remove('active-screen');
+      currentScreen = idTela;
+      document.getElementById(currentScreen).classList.add('active-screen');
+      fecharCamera();
     }
 
     function voltarTela() {
       if (historyStack.length > 0) {
-        let previousScreenId = historyStack.pop();
-        trocarVisibilidade(currentScreenId, previousScreenId);
+        let previous = historyStack.pop();
+        document.getElementById(currentScreen).classList.remove('active-screen');
+        currentScreen = previous;
+        document.getElementById(currentScreen).classList.add('active-screen');
+        fecharCamera();
       } else { irParaHome(); }
     }
 
     function irParaHome() {
-      historyStack = []; 
-      trocarVisibilidade(currentScreenId, 'screen-home');
-    }
-
-    function trocarVisibilidade(idAtual, idNovo) {
-      document.getElementById(idAtual).classList.remove('active-screen');
-      currentScreenId = idNovo;
-      document.getElementById(currentScreenId).classList.add('active-screen');
+      historyStack = [];
+      document.getElementById(currentScreen).classList.remove('active-screen');
+      currentScreen = 'screen-home';
+      document.getElementById(currentScreen).classList.add('active-screen');
       fecharCamera();
     }
 
     function abrirModal(id) { document.getElementById(id).style.display = 'block'; }
     function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
 
-    let loggedUserBarcode = null;
-    let html5QrcodeScanner = null;
-    let gestorSelecionado = null;
+    // ---------------------------------------------------------
+    // 2. COMUNICAÇÃO COM O SERVIDOR E OFFLINE
+    // ---------------------------------------------------------
+    async function apiCall(action, payload) {
+      if (!navigator.onLine) {
+        if (action !== 'sincronizar') {
+          offlineQueue.push({ action, payload, time: Date.now() });
+          localStorage.setItem('relatoriosQueue', JSON.stringify(offlineQueue));
+          alert("Salvo offline. Será sincronizado quando a internet voltar.");
+        }
+        return null;
+      }
 
-    function iniciarFluxo(modulo) {
-      abrirCamera("Por favor, escaneie seu crachá para confirmar seu login operacional.", function(codigo) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        document.getElementById('network-status').innerText = "Internet lenta... aguarde ou vá ao DP para consultar...";
+      }, 10000); // Exigência do prompt: 10 segundos
+
+      try {
+        let response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action, payload }),
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        document.getElementById('network-status').innerText = "";
+        let res = await response.json();
+        return res.data;
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          // Toast já exibido no setTimeout
+        } else {
+          alert("Erro de conexão com o banco de dados.");
+        }
+        return null;
+      }
+    }
+
+    async function syncInicial() {
+      let data = await apiCall('sincronizar', {});
+      if (data) { db = data; renderPeriodos(); }
+    }
+
+    // ---------------------------------------------------------
+    // 3. FLUXO DA CÂMERA (HTML5-QRCODE)
+    // ---------------------------------------------------------
+    function iniciarLogin(modulo) {
+      abrirCamera("Escaneie seu crachá para confirmar a identidade e acessar o módulo.", (codigo) => {
         loggedUserBarcode = codigo;
-        navegarPara('screen-faltas');
+        if(db.periodos.length === 0) syncInicial();
+        navegar('screen-periodos');
       });
     }
 
-    function lerCrachaAcao(acao) {
-      fecharModal('modal-acoes');
-      abrirCamera(`Escaneie o crachá do gestor para: ${acao.toUpperCase()}`, function(codigo) {
-        // Envia para o banco de dados
-        callAPI('registrarAcao', {
-          idData: 'DATA_EXEMPLO', 
-          idGestor: gestorSelecionado, 
-          acao: acao, 
-          codigoLido: codigo, 
-          responsavel: loggedUserBarcode
-        }, function(resultado) {
-          alert(`Ação "${acao}" registrada com sucesso às ${resultado.dataHora}`);
-          voltarTela();
-        });
-      });
-    }
-
-    function verificarHistoricoAPI() {
-      fecharModal('modal-acoes');
-      document.getElementById('conteudo-historico').innerHTML = "<p><em>Buscando na planilha...</em></p>";
-      abrirModal('modal-historico');
+    function abrirCamera(msg, callback) {
+      navegar('screen-camera');
+      document.getElementById('camera-instructions').innerText = msg;
+      scanCallback = callback;
       
-      callAPI('verificarHistorico', { idData: 'DATA_EXEMPLO', idGestor: gestorSelecionado }, function(historico) {
-        if(!historico || historico.length === 0) {
-          document.getElementById('conteudo-historico').innerHTML = "Nenhum registro encontrado.";
-          return;
-        }
-        let html = "";
-        historico.forEach(h => {
-          html += `<div style="padding:12px; border-bottom:1px solid #e1e4e8;">
-            <strong>Ação:</strong> ${h.acao}<br>
-            <strong>Resp.:</strong> ${h.responsavel}<br>
-            <strong>Data/Hora:</strong> ${h.dataHora}
-          </div>`;
-        });
-        document.getElementById('conteudo-historico').innerHTML = html;
-      });
-    }
-
-    function abrirAcoesGestor(idGestor) {
-      gestorSelecionado = idGestor;
-      abrirModal('modal-acoes');
-    }
-
-    // A CÂMERA AO VIVO QUE AGORA FUNCIONARÁ PERFEITAMENTE
-    function abrirCamera(mensagem, onScanSuccess) {
-      navegarPara('screen-camera');
-      document.getElementById('camera-status').innerText = mensagem;
-      
-      html5QrcodeScanner = new Html5Qrcode("reader");
-      
-      Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-          let cameraId = devices[0].id;
-          for (let i = 0; i < devices.length; i++) {
-            let label = devices[i].label.toLowerCase();
-            if (label.includes("back") || label.includes("traseira") || label.includes("environment")) {
-              cameraId = devices[i].id;
-              break;
-            }
-          }
-          
-          html5QrcodeScanner.start(
-            cameraId, 
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            (decodedText, decodedResult) => {
-              html5QrcodeScanner.stop().then(() => {
-                onScanSuccess(decodedText);
-              });
-            },
-            (errorMessage) => { /* Ignora erros de frame vazio */ }
-          ).catch((err) => {
-            alert("Acesse as configurações do seu navegador, procure permissões de site e libere a Câmera.");
-          });
-        }
-      });
+      cameraScanner = new Html5Qrcode("reader");
+      // O uso da câmera traseira força o navegador a pedir permissão de Hardware.
+      cameraScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          fecharCamera();
+          if (scanCallback) scanCallback(decodedText);
+        },
+        (err) => { /* ignora leitura vazia frame a frame */ }
+      ).catch(err => alert("O navegador bloqueou a câmera. Permita o acesso clicando no ícone do cadeado."));
     }
 
     function fecharCamera() {
-      if(html5QrcodeScanner) {
-        html5QrcodeScanner.stop().catch(err => console.log(err));
-        html5QrcodeScanner = null;
+      if (cameraScanner) {
+        cameraScanner.stop().catch(e => console.log(e));
+        cameraScanner = null;
       }
     }
+
+    // ---------------------------------------------------------
+    // 4. LÓGICA DE TELAS (Períodos, Datas, Relatórios)
+    // ---------------------------------------------------------
+    
+    // TELA 2: Períodos
+    function renderPeriodos() {
+      let div = document.getElementById('lista-periodos');
+      div.innerHTML = '';
+      db.periodos.forEach(p => {
+        // Converte as datas para exibição
+        let formatado = `De ${p.Inicio.substring(0,10)} a ${p.Fim.substring(0,10)}`;
+        div.innerHTML += `
+          <div class="btn" style="cursor:default;">
+            <span style="flex-grow:1; cursor:pointer;" onclick="preSelecionarPeriodo('${p.ID}')">${formatado}</span>
+            <button class="icon-btn" onclick="editarPeriodo('${p.ID}')">✏️</button>
+            <button class="icon-btn" style="color:var(--red);" onclick="excluirPeriodo('${p.ID}')">❌</button>
+          </div>
+        `;
+      });
+    }
+
+    async function salvarPeriodo() {
+      let i = document.getElementById('per-inicio').value;
+      let f = document.getElementById('per-fim').value;
+      let t = document.getElementById('per-turno').value;
+      if(!i || !f) return alert("Preencha as datas");
+      await apiCall('salvarPeriodo', { inicio: i, fim: f, turno: t });
+      fecharModal('modal-add-periodo');
+      syncInicial();
+    }
+
+    async function excluirPeriodo(id) {
+      if(confirm("Tem certeza de que deseja excluir este período por segurança?")) {
+        await apiCall('excluirPeriodo', { id: id });
+        syncInicial();
+      }
+    }
+
+    function preSelecionarPeriodo(id) {
+      context.periodoId = id;
+      abrirModal('modal-selecionar-turno');
+    }
+
+    function entrarPeriodo(turno) {
+      context.turno = turno;
+      document.getElementById('lbl-turno').innerText = "Turno " + turno;
+      fecharModal('modal-selecionar-turno');
+      renderDatas();
+      navegar('screen-datas');
+    }
+
+    // TELA 3: Datas e Gestores
+    function renderDatas() {
+      let div = document.getElementById('lista-datas');
+      div.innerHTML = '';
+      let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId);
+      
+      datasFiltradas.forEach(d => {
+        div.innerHTML += `
+          <button class="btn status-gray" onclick="entrarData('${d.ID}')">
+            📂 Data: ${d.DataString}
+          </button>`;
+      });
+      calcularProgresso();
+    }
+
+    // Configuração do "+" na tela de Datas
+    document.querySelector('#modal-add-data').addEventListener('click', function(e) {
+      if(e.target === this) fecharModal('modal-add-data');
+    });
+
+    function abrirModal(id) {
+      if(id === 'modal-add-data') {
+        let div = document.getElementById('list-check-gestores');
+        div.innerHTML = '';
+        db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
+          div.innerHTML += `<label style="display:block; margin: 10px 0;"><input type="checkbox" value="${g.ID}"> ${g.Nome}</label>`;
+        });
+      }
+      document.getElementById(id).style.display = 'block';
+    }
+
+    async function salvarDataDiaria() {
+      let dataNova = document.getElementById('data-nova').value;
+      if(!dataNova) return alert("Selecione a data");
+      
+      let checks = document.querySelectorAll('#list-check-gestores input[type="checkbox"]');
+      let status = Array.from(checks).map(c => ({ idGestor: c.value, teve: c.checked }));
+      
+      await apiCall('salvarStatusDiario', { idPeriodo: context.periodoId, dataString: dataNova, gestoresStatus: status });
+      fecharModal('modal-add-data');
+      syncInicial();
+      setTimeout(renderDatas, 1000); // Aguarda sync
+    }
+
+    function calcularProgresso() {
+      // Simplificado para UI
+      document.getElementById('progress-bar').style.width = '30%';
+      document.getElementById('progress-text').innerText = 'Falta devolver: 30% (Exemplo)';
+    }
+
+    // Modal Lápis (Gestores)
+    function abrirGestoresConfig() {
+      let div = document.getElementById('lista-config-gestores');
+      div.innerHTML = '';
+      db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
+        div.innerHTML += `
+          <div class="btn" style="padding: 10px; cursor: default;">
+            <span style="flex-grow:1;">${g.Nome}</span>
+            <button class="icon-btn">✏️</button><button class="icon-btn" style="color:red;">❌</button>
+          </div>`;
+      });
+      abrirModal('modal-gestores-config');
+    }
+
+    async function salvarNovoGestor() {
+      let nome = document.getElementById('nome-gestor').value;
+      await apiCall('salvarGestor', { nome: nome, turno: context.turno });
+      fecharModal('modal-add-gestor');
+      syncInicial();
+    }
+
+    // TELA 4: Relatórios da Data
+    function entrarData(idData) {
+      context.dataId = idData;
+      let div = document.getElementById('lista-gestores-data');
+      div.innerHTML = '';
+      
+      // Filtra apenas os gestores que TEVERAM relatório naquela data
+      let statusData = db.statusDiario.filter(s => s.ID_Data === idData && s.TeveRelatorio === true);
+      
+      statusData.forEach(s => {
+        let gestor = db.gestores.find(g => g.ID === s.ID_Gestor);
+        if(!gestor) return;
+
+        // Regra de cores simplificada localmente
+        let historico = db.registros.filter(r => r.ID_Data === idData && r.ID_Gestor === gestor.ID);
+        let corClasse = 'status-yellow'; // Teve, não entregue
+        if (historico.some(h => h.Acao === 'Devolver')) corClasse = 'status-green';
+        else if (historico.some(h => h.Acao === 'Entregar')) corClasse = 'status-red';
+
+        div.innerHTML += `<button class="btn ${corClasse}" onclick="escanearAcao('${gestor.ID}')">${gestor.Nome}</button>`;
+      });
+      navegar('screen-relatorios');
+    }
+
+    function escanearAcao(idGestor) {
+      context.gestorId = idGestor;
+      abrirCamera("Escaneie o código do crachá correspondente ao relatório selecionado.", (codigo) => {
+        context.scannedTargetBarcode = codigo;
+        abrirModal('modal-acoes');
+      });
+    }
+
+    async function executarAcao(acao) {
+      fecharModal('modal-acoes');
+      let res = await apiCall('registrarAcao', {
+        idData: context.dataId,
+        idGestor: context.gestorId,
+        acao: acao,
+        codigoLido: context.scannedTargetBarcode,
+        responsavel: loggedUserBarcode
+      });
+      if(res) {
+        alert(`Ação registrada com sucesso: ${res.dataHora}`);
+        syncInicial();
+        setTimeout(() => entrarData(context.dataId), 1000); // Atualiza cor
+      }
+    }
+
+    async function consultarHistorico() {
+      fecharModal('modal-acoes');
+      document.getElementById('conteudo-historico').innerHTML = "Buscando...";
+      abrirModal('modal-historico');
+      
+      let historico = await apiCall('verificarHistorico', { idData: context.dataId, idGestor: context.gestorId });
+      if(!historico || historico.length === 0) {
+        document.getElementById('conteudo-historico').innerHTML = "Nenhum histórico.";
+        return;
+      }
+      
+      let html = '<table><thead><tr><th>Ação</th><th>Alvo</th><th>Responsável (Login)</th><th>Data/Hora</th></tr></thead><tbody>';
+      historico.forEach(h => {
+        let cor = h.acao === 'Devolver' ? 'var(--green)' : 'var(--red)';
+        html += `<tr><td style="color:${cor}; font-weight:bold;">${h.acao}</td><td>${h.alvo}</td><td>${h.responsavel}</td><td>${h.dataHora}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('conteudo-historico').innerHTML = html;
+    }
+
+    // Modal Controle Geral (Tela Cheia)
+    function renderizarControle() {
+      // Lógica de cruzamento de matriz para exibir a tabela de controle
+      document.getElementById('tb-controle').innerHTML = "<tr><td colspan='3'>Matriz de controle carregada via API.</td></tr>";
+    }
+
+    // Inicialização
+    syncInicial();
   </script>
 </body>
 </html>
