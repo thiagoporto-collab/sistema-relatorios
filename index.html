@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Sistema Corporativo de Relatórios</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    :root {
+      --primary: #0f2537;
+      --secondary: #1d405e;
+      --accent: #0073e6;
+      --bg-color: #f0f4f8;
+      --card-bg: #ffffff;
+      --text-main: #333333;
+      --text-muted: #6b7c93;
+      --status-green: #2ecc71;
+      --status-yellow: #f1c40f;
+      --status-red: #e74c3c;
+      --status-gray: #bdc3c7;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      margin: 0; padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .header {
+      background: var(--primary); color: white; padding: 16px 60px;
+      text-align: center; font-size: 1.1rem; font-weight: 600;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); letter-spacing: 0.5px;
+    }
+
+    .header-btn-left, .header-btn-right {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: transparent; border: none; color: white;
+      font-size: 1.4rem; cursor: pointer; padding: 5px 10px;
+    }
+    .header-btn-left { left: 10px; } .header-btn-right { right: 10px; }
+
+    .container { padding: 24px; max-width: 800px; margin: 0 auto; }
+    
+    .btn {
+      display: block; width: 100%; padding: 16px; margin-bottom: 12px;
+      background: var(--card-bg); border: 1px solid #e1e4e8; border-radius: 8px;
+      font-size: 1rem; font-weight: 600; color: var(--secondary);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02); cursor: pointer;
+      transition: all 0.2s ease; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .btn:active { transform: scale(0.98); background-color: #f8f9fa; }
+    .btn-primary { background: var(--accent); color: white; border: none; }
+    .btn-secondary { background: var(--text-muted); color: white; border: none; }
+    .btn-action { display: inline-block; width: 48%; }
+
+    .status-item { display: flex; justify-content: space-between; align-items: center; text-transform: none; text-align: left; }
+    .status-green { border-left: 6px solid var(--status-green); }
+    .status-yellow { border-left: 6px solid var(--status-yellow); }
+    .status-red { border-left: 6px solid var(--status-red); }
+    .status-gray { border-left: 6px solid var(--status-gray); color: var(--text-muted); }
+
+    .progress-bar-container { background: #e1e4e8; height: 8px; border-radius: 4px; margin-bottom: 5px; overflow: hidden; }
+    .progress-bar-fill { background: var(--status-red); height: 100%; width: 30%; transition: width 0.3s; }
+    .progress-text { text-align: right; font-size: 0.8rem; color: var(--text-muted); margin: 0 0 20px 0; font-weight: 500;}
+
+    .screen { display: none; animation: fadeIn 0.3s ease; }
+    .active-screen { display: block; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 37, 55, 0.7); z-index: 1000; backdrop-filter: blur(3px);
+    }
+    .modal-content {
+      background: var(--card-bg); width: 85%; max-width: 400px; margin: 15% auto;
+      padding: 24px; border-radius: 12px; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .close-modal { position: absolute; right: 15px; top: 15px; font-size: 1.5rem; color: var(--text-muted); cursor: pointer; line-height: 1; }
+    
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid var(--accent); }
+    .camera-instructions { text-align: center; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px;}
+  </style>
+</head>
+<body>
+
+  <!-- TELAS DO APLICATIVO -->
+  <div id="screen-home" class="screen active-screen">
+    <div class="header">Sistema de Relatórios</div>
+    <div class="container">
+      <button class="btn" onclick="iniciarFluxo('FALTAS')">Relatório de Faltas</button>
+      <button class="btn" style="opacity: 0.5;">Contratos</button>
+      <button class="btn" style="opacity: 0.5;">Troca de Horários</button>
+      <button class="btn" style="opacity: 0.5;">Medidas Pedagógicas</button>
+    </div>
+  </div>
+
+  <div id="screen-camera" class="screen">
+    <div class="header">
+      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
+      Leitor de Crachá
+      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+    </div>
+    <div class="container">
+      <div class="camera-instructions" id="camera-status">Carregando câmera...</div>
+      <div id="reader"></div>
+    </div>
+  </div>
+
+  <div id="screen-faltas" class="screen">
+    <div class="header">
+      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
+      Gestão de Faltas
+      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+    </div>
+    <div class="container">
+      <div style="display: flex; gap: 10px; margin-bottom: 24px;">
+        <button class="btn btn-primary" onclick="abrirModal('modal-periodo')">Novo Período</button>
+        <button class="btn btn-secondary" onclick="abrirModal('modal-controle')">Controle</button>
+      </div>
+      <div id="lista-periodos">
+        <button class="btn" onclick="navegarPara('screen-datas')">📅 01/10/2023 a 15/10/2023</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-datas" class="screen">
+    <div class="header">
+      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
+      Datas do Período
+      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+    </div>
+    <div class="container">
+      <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+        <button class="btn btn-primary">Nova Data</button>
+        <button class="btn btn-secondary">Gestores</button>
+      </div>
+      <div class="progress-bar-container"><div class="progress-bar-fill"></div></div>
+      <p class="progress-text">Pendente de devolução: 30% (3 gestores)</p>
+      <div id="lista-datas"><button class="btn" onclick="navegarPara('screen-relatorios-data')">📂 Data: 10/10/2023</button></div>
+    </div>
+  </div>
+
+  <div id="screen-relatorios-data" class="screen">
+    <div class="header">
+      <button class="header-btn-left" onclick="voltarTela()">⬅️</button>
+      Relatórios da Data
+      <button class="header-btn-right" onclick="irParaHome()">🏠</button>
+    </div>
+    <div class="container" id="lista-gestores-data">
+      <button class="btn status-item status-yellow" onclick="abrirAcoesGestor('G1')"><span>João Silva</span> <span>⚠️</span></button>
+      <button class="btn status-item status-red"><span>Maria Souza</span> <span>⏳</span></button>
+      <button class="btn status-item status-green"><span>Carlos Alberto</span> <span>✅</span></button>
+    </div>
+  </div>
+
+  <!-- MODAIS -->
+  <div id="modal-acoes" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-acoes')">×</span>
+      <h3 style="margin-top: 0; color: var(--primary);">Ações do Relatório</h3>
+      <div style="display: flex; gap: 10px; margin-bottom: 15px; margin-top: 20px;">
+        <button class="btn btn-action" style="background: var(--status-yellow); color: #000; border: none;" onclick="lerCrachaAcao('Entregar')">Entregar</button>
+        <button class="btn btn-action" style="background: var(--status-green); color: white; border: none;" onclick="lerCrachaAcao('Devolver')">Devolver</button>
+      </div>
+      <button class="btn btn-secondary" style="margin-bottom: 0;" onclick="verificarHistoricoAPI()">Verificar Histórico</button>
+    </div>
+  </div>
+
+  <div id="modal-historico" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-historico')">×</span>
+      <h3 style="margin-top: 0; color: var(--primary);">Histórico</h3>
+      <div id="conteudo-historico" style="font-size: 0.9rem; max-height: 300px; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // COLE AQUI A SUA URL GERADA NO GOOGLE APPS SCRIPT
+    // =========================================================================
+    const API_URL = "SUA_URL_DO_GOOGLE_APPS_SCRIPT_AQUI";
+
+    // Função universal para enviar e receber dados da planilha via FETCH
+    function callAPI(action, payload, successCallback) {
+      if(!navigator.onLine) { alert("Dispositivo sem internet."); return; }
+      
+      // O uso de text/plain evita que o Google bloqueie a requisição (CORS)
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: action, payload: payload })
+      })
+      .then(response => response.json())
+      .then(res => {
+        if (res.status === 'success' && successCallback) {
+          successCallback(res.data);
+        } else {
+          alert("Erro no servidor: " + res.message);
+        }
+      })
+      .catch(err => {
+        alert("Erro de conexão com o banco de dados.");
+      });
+    }
+
+    // Navegação de Telas
+    let historyStack = [];
+    let currentScreenId = 'screen-home';
+
+    function navegarPara(idTela) {
+      if (currentScreenId === idTela) return;
+      historyStack.push(currentScreenId);
+      trocarVisibilidade(currentScreenId, idTela);
+    }
+
+    function voltarTela() {
+      if (historyStack.length > 0) {
+        let previousScreenId = historyStack.pop();
+        trocarVisibilidade(currentScreenId, previousScreenId);
+      } else { irParaHome(); }
+    }
+
+    function irParaHome() {
+      historyStack = []; 
+      trocarVisibilidade(currentScreenId, 'screen-home');
+    }
+
+    function trocarVisibilidade(idAtual, idNovo) {
+      document.getElementById(idAtual).classList.remove('active-screen');
+      currentScreenId = idNovo;
+      document.getElementById(currentScreenId).classList.add('active-screen');
+      fecharCamera();
+    }
+
+    function abrirModal(id) { document.getElementById(id).style.display = 'block'; }
+    function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    let loggedUserBarcode = null;
+    let html5QrcodeScanner = null;
+    let gestorSelecionado = null;
+
+    function iniciarFluxo(modulo) {
+      abrirCamera("Por favor, escaneie seu crachá para confirmar seu login operacional.", function(codigo) {
+        loggedUserBarcode = codigo;
+        navegarPara('screen-faltas');
+      });
+    }
+
+    function lerCrachaAcao(acao) {
+      fecharModal('modal-acoes');
+      abrirCamera(`Escaneie o crachá do gestor para: ${acao.toUpperCase()}`, function(codigo) {
+        // Envia para o banco de dados
+        callAPI('registrarAcao', {
+          idData: 'DATA_EXEMPLO', 
+          idGestor: gestorSelecionado, 
+          acao: acao, 
+          codigoLido: codigo, 
+          responsavel: loggedUserBarcode
+        }, function(resultado) {
+          alert(`Ação "${acao}" registrada com sucesso às ${resultado.dataHora}`);
+          voltarTela();
+        });
+      });
+    }
+
+    function verificarHistoricoAPI() {
+      fecharModal('modal-acoes');
+      document.getElementById('conteudo-historico').innerHTML = "<p><em>Buscando na planilha...</em></p>";
+      abrirModal('modal-historico');
+      
+      callAPI('verificarHistorico', { idData: 'DATA_EXEMPLO', idGestor: gestorSelecionado }, function(historico) {
+        if(!historico || historico.length === 0) {
+          document.getElementById('conteudo-historico').innerHTML = "Nenhum registro encontrado.";
+          return;
+        }
+        let html = "";
+        historico.forEach(h => {
+          html += `<div style="padding:12px; border-bottom:1px solid #e1e4e8;">
+            <strong>Ação:</strong> ${h.acao}<br>
+            <strong>Resp.:</strong> ${h.responsavel}<br>
+            <strong>Data/Hora:</strong> ${h.dataHora}
+          </div>`;
+        });
+        document.getElementById('conteudo-historico').innerHTML = html;
+      });
+    }
+
+    function abrirAcoesGestor(idGestor) {
+      gestorSelecionado = idGestor;
+      abrirModal('modal-acoes');
+    }
+
+    // A CÂMERA AO VIVO QUE AGORA FUNCIONARÁ PERFEITAMENTE
+    function abrirCamera(mensagem, onScanSuccess) {
+      navegarPara('screen-camera');
+      document.getElementById('camera-status').innerText = mensagem;
+      
+      html5QrcodeScanner = new Html5Qrcode("reader");
+      
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          let cameraId = devices[0].id;
+          for (let i = 0; i < devices.length; i++) {
+            let label = devices[i].label.toLowerCase();
+            if (label.includes("back") || label.includes("traseira") || label.includes("environment")) {
+              cameraId = devices[i].id;
+              break;
+            }
+          }
+          
+          html5QrcodeScanner.start(
+            cameraId, 
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText, decodedResult) => {
+              html5QrcodeScanner.stop().then(() => {
+                onScanSuccess(decodedText);
+              });
+            },
+            (errorMessage) => { /* Ignora erros de frame vazio */ }
+          ).catch((err) => {
+            alert("Acesse as configurações do seu navegador, procure permissões de site e libere a Câmera.");
+          });
+        }
+      });
+    }
+
+    function fecharCamera() {
+      if(html5QrcodeScanner) {
+        html5QrcodeScanner.stop().catch(err => console.log(err));
+        html5QrcodeScanner = null;
+      }
+    }
+  </script>
+</body>
+</html>
