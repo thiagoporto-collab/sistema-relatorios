@@ -162,18 +162,24 @@
     </div>
   </div>
 
-  <!-- Modal Controle Geral com botão 'X' -->
+  <!-- Modal Controle Geral com botão 'VOLTAR / FECHAR' -->
   <div id="modal-controle" class="modal-overlay" style="background: var(--bg);">
-    <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 25px 20px;">
-      <span class="close-modal" onclick="fecharModal('modal-controle')" style="right: 20px; top: 20px; font-size: 2.2rem; color: var(--red);">×</span>
-      <h3 style="margin-top: 0;">Matriz de Controle Geral</h3>
+    <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 25px 20px; box-sizing: border-box; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="margin: 0;">Matriz de Controle Geral</h3>
+        <button class="btn-primary" style="padding: 8px 16px; background: var(--red); border-radius: 6px; font-size: 0.9rem;" onclick="fecharModal('modal-controle')">✖ Voltar / Fechar</button>
+      </div>
+      
       <select id="controle-periodo-select" onchange="renderizarTabelaControle()"></select>
-      <div style="overflow-x: auto; margin-top: 15px;">
+      
+      <div style="overflow-x: auto; flex-grow: 1; margin-top: 15px;">
         <table>
           <thead><tr><th>Gestor</th><th>Data</th><th>Status</th></tr></thead>
           <tbody id="tb-controle"></tbody>
         </table>
       </div>
+
+      <button class="btn btn-primary" style="margin-top: 15px; background: var(--gray);" onclick="fecharModal('modal-controle')">⬅️ VOLTAR PARA PÁGINA ANTERIOR</button>
     </div>
   </div>
 
@@ -247,7 +253,6 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
-    // ESTADO LOCAL INSTANTÂNEO
     let db = JSON.parse(localStorage.getItem('relatoriosDB')) || { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [], nomes: [] };
     let loggedUserBarcode = null;
     let cameraScanner = null;
@@ -334,7 +339,6 @@
       if(id === 'modal-acoes') document.getElementById('consultar-toast').innerText = '';
     }
 
-    // ENVIO SEGUNDO PLANO
     function sendInBackground(action, payload) {
       if (!navigator.onLine) return;
 
@@ -374,7 +378,6 @@
       else if (currentScreen === 'screen-relatorios') entrarData(context.dataId);
     }
 
-    // CÂMERA
     function iniciarLogin(modulo) {
       abrirCamera("Escaneie seu crachá para acessar o sistema.", (codigo) => {
         loggedUserBarcode = codigo;
@@ -406,7 +409,6 @@
       }
     }
 
-    // PERÍODOS
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos');
       div.innerHTML = '';
@@ -416,8 +418,10 @@
       }
       
       db.periodos.forEach(p => {
-        let iStr = formatDateBR(p.Inicio);
-        let fStr = formatDateBR(p.Fim);
+        let iRaw = p['Data Inicial'] || p.Inicio || p.inicio || '';
+        let fRaw = p['Data Final'] || p.Fim || p.fim || '';
+        let iStr = formatDateBR(iRaw);
+        let fStr = formatDateBR(fRaw);
         let formatado = (iStr && fStr) ? `De ${iStr} a ${fStr}` : (iStr || 'Período Sem Data');
         
         div.innerHTML += `
@@ -437,10 +441,10 @@
       
       if (editId) {
         let per = db.periodos.find(p => p.ID === editId);
-        if (per) { per.Inicio = i; per.Fim = f; }
+        if (per) { per.Inicio = i; per.Fim = f; per['Data Inicial'] = i; per['Data Final'] = f; }
       } else {
         let newId = generateID();
-        db.periodos.push({ ID: newId, Inicio: i, Fim: f });
+        db.periodos.push({ ID: newId, Inicio: i, Fim: f, 'Data Inicial': i, 'Data Final': f });
       }
       
       saveDBLocal();
@@ -453,8 +457,10 @@
       let per = db.periodos.find(p => p.ID === id);
       if (!per) return;
       document.getElementById('edit-periodo-id').value = per.ID;
-      document.getElementById('per-inicio').value = per.Inicio ? String(per.Inicio).substring(0,10) : '';
-      document.getElementById('per-fim').value = per.Fim ? String(per.Fim).substring(0,10) : '';
+      let iVal = per['Data Inicial'] || per.Inicio || '';
+      let fVal = per['Data Final'] || per.Fim || '';
+      document.getElementById('per-inicio').value = String(iVal).substring(0,10);
+      document.getElementById('per-fim').value = String(fVal).substring(0,10);
       document.getElementById('lbl-modal-periodo-titulo').innerText = "Editar Período";
       abrirModal('modal-add-periodo');
     }
@@ -483,7 +489,6 @@
       navegar('screen-datas');
     }
 
-    // DATAS COM STATUS E PORCENTAGEM (Teve / Devolvido)
     function renderDatas() {
       let div = document.getElementById('lista-datas');
       div.innerHTML = '';
@@ -495,7 +500,6 @@
       }
       
       datasFiltradas.forEach(d => {
-        // Cálculo do status e porcentagem da data
         let statusList = db.statusDiario.filter(s => s.ID_Data === d.ID && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE" || s.TeveRelatorio === "true"));
         let totalTeve = statusList.length;
         let entreguesCount = 0;
@@ -507,7 +511,7 @@
           else if(hist.some(h => h.Acao === 'Entregar')) { entreguesCount++; }
         });
 
-        let corClasse = 'status-gray'; // Não teve / 0 relatórios
+        let corClasse = 'status-gray';
         let pctText = '(0/0 - 0%)';
 
         if(totalTeve > 0) {
@@ -515,11 +519,11 @@
           pctText = `(${devolvidosCount}/${totalTeve} - ${pct}%)`;
 
           if(devolvidosCount === totalTeve) {
-            corClasse = 'status-green'; // Todos devolvidos
+            corClasse = 'status-green';
           } else if(entreguesCount > devolvidosCount) {
-            corClasse = 'status-red'; // Entregue e não devolvido
+            corClasse = 'status-red';
           } else {
-            corClasse = 'status-yellow'; // Teve mas não entregue
+            corClasse = 'status-yellow';
           }
         }
 
@@ -582,7 +586,6 @@
       document.getElementById('progress-text').innerText = `Falta devolver: ${pct}% (${totalFaltaDevolver} de ${totalTeve})`;
     }
 
-    // GESTORES
     function abrirGestoresConfig() {
       let div = document.getElementById('lista-config-gestores');
       div.innerHTML = '';
@@ -639,7 +642,6 @@
       }
     }
 
-    // RELATÓRIOS DA DATA
     function entrarData(idData) {
       context.dataId = idData;
       let div = document.getElementById('lista-gestores-data');
@@ -693,6 +695,7 @@
       sendInBackground('registrarAcao', {
         idData: context.dataId,
         idGestor: context.gestorId,
+        turno: context.turno,
         acao: acao,
         codigoLido: context.scannedTargetBarcode,
         responsavel: loggedUserBarcode,
@@ -700,7 +703,6 @@
       });
     }
 
-    // CONSULTA COM TIMEOUT DE 10 SEGUNDOS EXCLUSIVO
     function consultarHistorico() {
       let toast = document.getElementById('consultar-toast');
       toast.innerText = "Consultando servidor...";
@@ -758,8 +760,10 @@
       let sel = document.getElementById('controle-periodo-select');
       sel.innerHTML = '';
       db.periodos.forEach(p => {
-        let iStr = formatDateBR(p.Inicio);
-        let fStr = formatDateBR(p.Fim);
+        let iRaw = p['Data Inicial'] || p.Inicio || p.inicio || '';
+        let fRaw = p['Data Final'] || p.Fim || p.fim || '';
+        let iStr = formatDateBR(iRaw);
+        let fStr = formatDateBR(fRaw);
         sel.innerHTML += `<option value="${p.ID}">Período: ${iStr} a ${fStr}</option>`;
       });
       renderizarTabelaControle();
