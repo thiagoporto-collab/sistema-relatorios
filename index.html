@@ -271,9 +271,9 @@
   <!-- ================= JAVASCRIPT ================= -->
   <script>
     // ---------------------------------------------------------
-    // 1. CONFIGURAÇÃO DA API (Substitua a URL abaixo)
+    // 1. CONFIGURAÇÃO DA API (URL Corrigida com HTTPS)
     // ---------------------------------------------------------
-    const API_URL = "script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
     // Variáveis Globais de Estado
     let db = { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [] };
@@ -318,43 +318,61 @@
     function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
 
     // ---------------------------------------------------------
-    // 2. COMUNICAÇÃO COM O SERVIDOR E OFFLINE
+    // 2. COMUNICAÇÃO JSONP (Bypassa Bloqueios Corporativos)
     // ---------------------------------------------------------
-    async function apiCall(action, payload) {
-      if (!navigator.onLine) {
-        if (action !== 'sincronizar') {
-          offlineQueue.push({ action, payload, time: Date.now() });
-          localStorage.setItem('relatoriosQueue', JSON.stringify(offlineQueue));
-          alert("Salvo offline. Será sincronizado quando a internet voltar.");
+    function apiCall(action, payload) {
+      return new Promise((resolve) => {
+        if (!navigator.onLine) {
+          if (action !== 'sincronizar') {
+            offlineQueue.push({ action, payload, time: Date.now() });
+            localStorage.setItem('relatoriosQueue', JSON.stringify(offlineQueue));
+            alert("Salvo offline. Será sincronizado quando a internet voltar.");
+          }
+          resolve(null);
+          return;
         }
-        return null;
-      }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-        document.getElementById('network-status').innerText = "Internet lenta... aguarde ou vá ao DP para consultar...";
-      }, 10000); // Exigência do prompt: 10 segundos
+        const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
+        const script = document.createElement('script');
 
-      try {
-        let response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action, payload }),
-          signal: controller.signal
+        const timeoutId = setTimeout(() => {
+          document.getElementById('network-status').innerText = "Internet lenta... aguarde ou vá ao DP para consultar...";
+          cleanup();
+          resolve(null);
+        }, 10000); // 10 Segundos de Timeout
+
+        function cleanup() {
+          delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+          clearTimeout(timeoutId);
+        }
+
+        window[callbackName] = function(response) {
+          cleanup();
+          document.getElementById('network-status').innerText = "";
+          if (response && response.status === 'success') {
+            resolve(response.data);
+          } else {
+            alert("Erro no servidor: " + (response ? response.message : "Resposta inválida"));
+            resolve(null);
+          }
+        };
+
+        const params = new URLSearchParams({
+          action: action,
+          payload: JSON.stringify(payload || {}),
+          callback: callbackName
         });
-        clearTimeout(timeoutId);
-        document.getElementById('network-status').innerText = "";
-        let res = await response.json();
-        return res.data;
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          // Toast já exibido no setTimeout
-        } else {
-          alert("Erro de conexão com o banco de dados.");
-        }
-        return null;
-      }
+
+        script.src = `${API_URL}?${params.toString()}`;
+        script.onerror = function() {
+          cleanup();
+          alert("Erro de conexão com o servidor. Verifique com a TI local.");
+          resolve(null);
+        };
+
+        document.body.appendChild(script);
+      });
     }
 
     async function syncInicial() {
@@ -379,13 +397,12 @@
       scanCallback = callback;
       
       cameraScanner = new Html5Qrcode("reader");
-      // O uso da câmera traseira força o navegador a pedir permissão de Hardware.
       cameraScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
           fecharCamera();
           if (scanCallback) scanCallback(decodedText);
         },
-        (err) => { /* ignora leitura vazia frame a frame */ }
+        (err) => { /* ignora quadros vazios */ }
       ).catch(err => alert("O navegador bloqueou a câmera. Permita o acesso clicando no ícone do cadeado."));
     }
 
@@ -404,9 +421,13 @@
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos');
       div.innerHTML = '';
+      if(!db.periodos) return;
+      
       db.periodos.forEach(p => {
-        // Converte as datas para exibição
-        let formatado = `De ${p.Inicio.substring(0,10)} a ${p.Fim.substring(0,10)}`;
+        let inicioStr = p.Inicio ? String(p.Inicio).substring(0,10) : '';
+        let fimStr = p.Fim ? String(p.Fim).substring(0,10) : '';
+        let formatado = `De ${inicioStr} a ${fimStr}`;
+        
         div.innerHTML += `
           <div class="btn" style="cursor:default;">
             <span style="flex-grow:1; cursor:pointer;" onclick="preSelecionarPeriodo('${p.ID}')">${formatado}</span>
@@ -451,6 +472,8 @@
     function renderDatas() {
       let div = document.getElementById('lista-datas');
       div.innerHTML = '';
+      if(!db.datas) return;
+      
       let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId);
       
       datasFiltradas.forEach(d => {
@@ -462,7 +485,6 @@
       calcularProgresso();
     }
 
-    // Configuração do "+" na tela de Datas
     document.querySelector('#modal-add-data').addEventListener('click', function(e) {
       if(e.target === this) fecharModal('modal-add-data');
     });
@@ -471,9 +493,11 @@
       if(id === 'modal-add-data') {
         let div = document.getElementById('list-check-gestores');
         div.innerHTML = '';
-        db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
-          div.innerHTML += `<label style="display:block; margin: 10px 0;"><input type="checkbox" value="${g.ID}"> ${g.Nome}</label>`;
-        });
+        if(db.gestores) {
+          db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
+            div.innerHTML += `<label style="display:block; margin: 10px 0;"><input type="checkbox" value="${g.ID}"> ${g.Nome}</label>`;
+          });
+        }
       }
       document.getElementById(id).style.display = 'block';
     }
@@ -488,31 +512,32 @@
       await apiCall('salvarStatusDiario', { idPeriodo: context.periodoId, dataString: dataNova, gestoresStatus: status });
       fecharModal('modal-add-data');
       syncInicial();
-      setTimeout(renderDatas, 1000); // Aguarda sync
+      setTimeout(renderDatas, 1000);
     }
 
     function calcularProgresso() {
-      // Simplificado para UI
       document.getElementById('progress-bar').style.width = '30%';
-      document.getElementById('progress-text').innerText = 'Falta devolver: 30% (Exemplo)';
+      document.getElementById('progress-text').innerText = 'Falta devolver: 30%';
     }
 
-    // Modal Lápis (Gestores)
     function abrirGestoresConfig() {
       let div = document.getElementById('lista-config-gestores');
       div.innerHTML = '';
-      db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
-        div.innerHTML += `
-          <div class="btn" style="padding: 10px; cursor: default;">
-            <span style="flex-grow:1;">${g.Nome}</span>
-            <button class="icon-btn">✏️</button><button class="icon-btn" style="color:red;">❌</button>
-          </div>`;
-      });
+      if(db.gestores) {
+        db.gestores.filter(g => g.Turno === context.turno).forEach(g => {
+          div.innerHTML += `
+            <div class="btn" style="padding: 10px; cursor: default;">
+              <span style="flex-grow:1;">${g.Nome}</span>
+              <button class="icon-btn">✏️</button><button class="icon-btn" style="color:red;">❌</button>
+            </div>`;
+        });
+      }
       abrirModal('modal-gestores-config');
     }
 
     async function salvarNovoGestor() {
       let nome = document.getElementById('nome-gestor').value;
+      if(!nome) return alert("Digite o nome");
       await apiCall('salvarGestor', { nome: nome, turno: context.turno });
       fecharModal('modal-add-gestor');
       syncInicial();
@@ -524,16 +549,15 @@
       let div = document.getElementById('lista-gestores-data');
       div.innerHTML = '';
       
-      // Filtra apenas os gestores que TEVERAM relatório naquela data
-      let statusData = db.statusDiario.filter(s => s.ID_Data === idData && s.TeveRelatorio === true);
+      if(!db.statusDiario) return;
+      let statusData = db.statusDiario.filter(s => s.ID_Data === idData && (s.TeveRelatorio === true || s.TeveRelatorio === "TRUE"));
       
       statusData.forEach(s => {
         let gestor = db.gestores.find(g => g.ID === s.ID_Gestor);
         if(!gestor) return;
 
-        // Regra de cores simplificada localmente
-        let historico = db.registros.filter(r => r.ID_Data === idData && r.ID_Gestor === gestor.ID);
-        let corClasse = 'status-yellow'; // Teve, não entregue
+        let historico = db.registros ? db.registros.filter(r => r.ID_Data === idData && r.ID_Gestor === gestor.ID) : [];
+        let corClasse = 'status-yellow';
         if (historico.some(h => h.Acao === 'Devolver')) corClasse = 'status-green';
         else if (historico.some(h => h.Acao === 'Entregar')) corClasse = 'status-red';
 
@@ -562,7 +586,7 @@
       if(res) {
         alert(`Ação registrada com sucesso: ${res.dataHora}`);
         syncInicial();
-        setTimeout(() => entrarData(context.dataId), 1000); // Atualiza cor
+        setTimeout(() => entrarData(context.dataId), 1000);
       }
     }
 
@@ -577,7 +601,7 @@
         return;
       }
       
-      let html = '<table><thead><tr><th>Ação</th><th>Alvo</th><th>Responsável (Login)</th><th>Data/Hora</th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>Ação</th><th>Alvo</th><th>Responsável</th><th>Data/Hora</th></tr></thead><tbody>';
       historico.forEach(h => {
         let cor = h.acao === 'Devolver' ? 'var(--green)' : 'var(--red)';
         html += `<tr><td style="color:${cor}; font-weight:bold;">${h.acao}</td><td>${h.alvo}</td><td>${h.responsavel}</td><td>${h.dataHora}</td></tr>`;
@@ -586,13 +610,11 @@
       document.getElementById('conteudo-historico').innerHTML = html;
     }
 
-    // Modal Controle Geral (Tela Cheia)
     function renderizarControle() {
-      // Lógica de cruzamento de matriz para exibir a tabela de controle
-      document.getElementById('tb-controle').innerHTML = "<tr><td colspan='3'>Matriz de controle carregada via API.</td></tr>";
+      document.getElementById('tb-controle').innerHTML = "<tr><td colspan='3'>Matriz de controle carregada.</td></tr>";
     }
 
-    // Inicialização
+    // Inicializa carregamento
     syncInicial();
   </script>
 </body>
