@@ -92,7 +92,6 @@
     <div class="container">
       <p style="text-align: center; color: var(--secondary); font-weight: 600;" id="camera-instructions"></p>
       
-      <!-- Câmera com Scanner Visual -->
       <div class="scanner-container">
         <div class="scan-line" id="scan-line"></div>
         <div id="reader"></div>
@@ -120,7 +119,7 @@
   <!-- TELA 3: DATAS -->
   <div id="screen-datas" class="screen">
     <div class="header">
-      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Datas (<span id="lbl-turno"></span>)
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Datas (Turno <span id="lbl-turno"></span>)
       <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container">
@@ -137,7 +136,7 @@
   <!-- TELA 4: GESTORES DA DATA -->
   <div id="screen-relatorios" class="screen">
     <div class="header">
-      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Gestores
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Gestores (Turno <span id="lbl-turno-gestores"></span>)
       <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container" id="lista-gestores-data"></div>
@@ -185,7 +184,7 @@
       <label>Data Inicial:</label><input type="date" id="data-nova-inicio">
       <div id="bloco-data-fim"><label>Data Final (Opcional):</label><input type="date" id="data-nova-fim"></div>
       <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
-      <label>Selecione quem TEVE relatório:</label>
+      <label>Selecione quem TEVE relatório (Turno Atual):</label>
       <div id="list-check-gestores" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-top: 8px; background:var(--bg);"></div>
       <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
         <button class="btn btn-action" style="background: var(--green);" onclick="salvarDataDiaria()">Salvar</button>
@@ -229,7 +228,15 @@
         <h3 style="margin: 0; color: var(--primary);">Matriz de Controle</h3>
         <button class="btn-primary" style="padding: 8px 15px; width: auto; background: var(--gray);" onclick="fecharModal('modal-controle')">✖ Fechar</button>
       </div>
-      <select id="controle-periodo-select" onchange="renderizarMatrizControle()"></select>
+      
+      <div style="display:flex; gap:10px; margin-bottom: 10px;">
+        <select id="controle-periodo-select" onchange="renderizarMatrizControle()" style="flex:2; margin:0;"></select>
+        <select id="controle-turno-select" onchange="renderizarMatrizControle()" style="flex:1; margin:0;">
+          <option value="A">Turno A</option>
+          <option value="B">Turno B</option>
+        </select>
+      </div>
+
       <div style="overflow: auto; flex-grow: 1; border: 1px solid var(--border); border-radius: 8px; background: #fff;">
         <table class="matrix-table" id="tb-matriz"></table>
       </div>
@@ -246,13 +253,19 @@
       <div id="lista-config-gestores"></div>
     </div>
   </div>
+
   <div id="modal-add-gestor" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-add-gestor')">×</span>
       <h3 id="lbl-modal-gestor-titulo" style="margin-top:0;">Novo Gestor</h3>
       <input type="hidden" id="edit-gestor-id">
       <input type="text" id="nome-gestor" placeholder="Nome Completo">
-      <button class="btn-primary btn" onclick="salvarNovoGestor()">Salvar</button>
+      <label style="display:block; margin-top:10px;">Turno:</label>
+      <select id="turno-gestor">
+        <option value="A">Turno A</option>
+        <option value="B">Turno B</option>
+      </select>
+      <button class="btn-primary btn" onclick="salvarNovoGestor()">Salvar Gestor</button>
     </div>
   </div>
 
@@ -304,7 +317,7 @@
     // --- TELA CHEIA GARANTIDA EM QUALQUER CLIQUE ---
     document.addEventListener('click', function(e) {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignorado: " + err));
+        document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignorado"));
       }
     });
 
@@ -395,36 +408,22 @@
       document.getElementById('scan-line').style.display = 'block';
       currentScanCallback = callback;
       
-      lastScannedCode = "";
-      scanMatchCount = 0;
-      
+      lastScannedCode = ""; scanMatchCount = 0;
       cameraScanner = new Html5Qrcode("reader");
       
-      let configCamera = { 
-        fps: 15, 
-        qrbox: { width: 280, height: 120 }, 
-        disableFlip: false 
-      };
+      let configCamera = { fps: 15, qrbox: { width: 280, height: 120 }, disableFlip: false };
 
       cameraScanner.start(
-        { facingMode: "environment" }, 
-        configCamera,
+        { facingMode: "environment" }, configCamera,
         (decodedText) => { 
           let codigoLimpo = decodedText.trim();
-          
           if (codigoLimpo.length > 16 || codigoLimpo.length < 4) return;
-          
-          // TRAVA DE SEGURANÇA: Lê o mesmo código 2x seguidas
           if (codigoLimpo !== lastScannedCode) {
-             lastScannedCode = codigoLimpo;
-             scanMatchCount = 1;
-             return;
+             lastScannedCode = codigoLimpo; scanMatchCount = 1; return;
           }
           scanMatchCount++;
-          
           if (scanMatchCount >= 2) {
-             fecharCamera(); 
-             voltarTela(); 
+             fecharCamera(); voltarTela(); 
              if (currentScanCallback) currentScanCallback(codigoLimpo); 
           }
         }, 
@@ -447,6 +446,7 @@
       if (currentScanCallback) currentScanCallback(code);
     }
 
+    // Períodos
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos'); div.innerHTML = '';
       if(!db.periodos || db.periodos.length === 0) { div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhum período criado.</p>'; return; }
@@ -464,13 +464,26 @@
     }
     function editarPeriodo(id) { let per = db.periodos.find(p => p.ID === id); if (!per) return; document.getElementById('edit-periodo-id').value = per.ID; document.getElementById('per-inicio').value = String(per.DataInicial).substring(0,10); document.getElementById('per-fim').value = String(per.DataFinal).substring(0,10); abrirModal('modal-add-periodo'); }
     function excluirPeriodo(id) { if(confirm("Excluir?")) { db.periodos = db.periodos.filter(p => p.ID !== id); saveDBLocal(); renderPeriodos(); sendInBackground('excluirPeriodo', { id: id }); } }
+    
+    // Config do Turno Geral
     function preSelecionarPeriodo(id) { context.periodoId = id; abrirModal('modal-selecionar-turno'); }
-    function entrarPeriodo(turno) { context.turno = turno; document.getElementById('lbl-turno').innerText = turno; fecharModal('modal-selecionar-turno'); renderDatas(); navegar('screen-datas'); }
+    function entrarPeriodo(turno) { 
+      context.turno = turno; 
+      document.getElementById('lbl-turno').innerText = turno; 
+      document.getElementById('lbl-turno-gestores').innerText = turno;
+      fecharModal('modal-selecionar-turno'); 
+      renderDatas(); navegar('screen-datas'); 
+    }
 
+    // Datas por TURNO
     function renderDatas() {
       let div = document.getElementById('lista-datas'); div.innerHTML = '';
-      let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
-      if(datasFiltradas.length === 0) div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhuma data criada.</p>';
+      
+      // FILTRA AS DATAS QUE PERTENCEM SOMENTE AO TURNO ATUAL
+      let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId && d.Turno === context.turno).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
+      
+      if(datasFiltradas.length === 0) div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhuma data criada para este turno.</p>';
+      
       datasFiltradas.forEach(d => {
         let statusList = db.statusDiario.filter(s => s.ID_Data === d.ID && String(s.TeveRelatorio).toLowerCase() === 'true');
         let totalTeve = statusList.length; let entC = 0; let devC = 0;
@@ -482,9 +495,19 @@
       });
       calcularProgresso(datasFiltradas);
     }
+    
     function prepararModalData(isEdit, idData = null) {
       let divCheck = document.getElementById('list-check-gestores'); divCheck.innerHTML = '';
-      db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { divCheck.innerHTML += `<label style="display:block; padding: 6px; border-bottom:1px solid #f1f5f9;"><input type="checkbox" value="${g.ID}" id="chk_${g.ID}"> ${g.Nome}</label>`; });
+      
+      // FILTRA APENAS OS GESTORES DO TURNO ATUAL NA HORA DE CRIAR A DATA
+      let gestoresTurno = db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome));
+      
+      if(gestoresTurno.length === 0){
+         divCheck.innerHTML = '<p style="color:var(--red);">Nenhum gestor cadastrado neste turno.</p>';
+      } else {
+         gestoresTurno.forEach(g => { divCheck.innerHTML += `<label style="display:block; padding: 6px; border-bottom:1px solid #f1f5f9;"><input type="checkbox" value="${g.ID}" id="chk_${g.ID}"> ${g.Nome}</label>`; });
+      }
+
       if(isEdit) {
         let d = db.datas.find(x => x.ID === idData); document.getElementById('edit-data-id').value = d.ID; document.getElementById('data-nova-inicio').value = String(d.DataISO).substring(0,10);
         document.getElementById('bloco-data-fim').style.display = 'none';
@@ -492,18 +515,25 @@
       } else { document.getElementById('edit-data-id').value = ''; document.getElementById('data-nova-inicio').value = ''; document.getElementById('data-nova-fim').value = ''; document.getElementById('bloco-data-fim').style.display = 'block'; }
       abrirModal('modal-add-data');
     }
+    
     function salvarDataDiaria() {
       let editId = document.getElementById('edit-data-id').value; let dIni = document.getElementById('data-nova-inicio').value; let dFim = document.getElementById('data-nova-fim').value;
       if(!dIni) return alert("Selecione a Data.");
       let sIni = formatISOtoBR(dIni); let sFim = dFim ? formatISOtoBR(dFim) : ''; let dLabel = (sFim && sFim !== sIni) ? `${sIni} a ${sFim}` : sIni;
       let targetId = editId || generateID();
       let statusList = Array.from(document.querySelectorAll('#list-check-gestores input[type="checkbox"]')).map(c => ({ idGestor: c.value, teve: c.checked }));
-      if(editId) { let dObj = db.datas.find(x => x.ID === editId); dObj.DataString = dLabel; dObj.DataISO = dIni; db.statusDiario = db.statusDiario.filter(s => s.ID_Data !== editId); } 
-      else { db.datas.push({ ID: targetId, ID_Periodo: context.periodoId, DataString: dLabel, DataISO: dIni }); }
+      
+      if(editId) { 
+        let dObj = db.datas.find(x => x.ID === editId); dObj.DataString = dLabel; dObj.DataISO = dIni; db.statusDiario = db.statusDiario.filter(s => s.ID_Data !== editId); 
+      } else { 
+        db.datas.push({ ID: targetId, ID_Periodo: context.periodoId, DataString: dLabel, DataISO: dIni, Turno: context.turno }); 
+      }
+      
       statusList.forEach(s => { db.statusDiario.push({ ID_Data: targetId, ID_Gestor: s.idGestor, TeveRelatorio: s.teve }); });
       saveDBLocal(); renderDatas(); fecharModal('modal-add-data');
-      sendInBackground('salvarStatusDiario', { idData: targetId, idPeriodo: context.periodoId, dataString: dLabel, dataISO: dIni, gestoresStatus: statusList, isEdit: !!editId });
+      sendInBackground('salvarStatusDiario', { idData: targetId, idPeriodo: context.periodoId, dataString: dLabel, dataISO: dIni, turno: context.turno, gestoresStatus: statusList, isEdit: !!editId });
     }
+    
     function calcularProgresso(datasPer) {
       let tot = 0; let dev = 0;
       datasPer.forEach(d => { db.statusDiario.filter(s => s.ID_Data === d.ID && String(s.TeveRelatorio).toLowerCase() === 'true').forEach(s => { tot++; if(db.registros.some(r => r.ID_Data === d.ID && r.ID_Gestor === s.ID_Gestor && r.Acao === 'Devolver')) dev++; }); });
@@ -537,10 +567,22 @@
 
     function executarAcao(acao, codigoLido) {
       let dataHora = new Date().toLocaleString("pt-BR");
-      db.registros.push({ ID_Data: context.dataId, ID_Gestor: context.gestorId, Acao: acao, CodigoLido: codigoLido, ResponsavelLogin: loggedUserBarcode, DataHora: dataHora });
+      
+      db.registros.push({ 
+        ID_Data: context.dataId, 
+        ID_Gestor: context.gestorId, 
+        Acao: acao, 
+        CodigoLido: codigoLido, 
+        ResponsavelLogin: loggedUserBarcode, 
+        DataHora: dataHora 
+      });
       saveDBLocal(); entrarData(context.dataId);
       let gestorObj = db.gestores.find(g => g.ID === context.gestorId);
-      sendInBackground('registrarAcao', { idData: context.dataId, idGestor: context.gestorId, turno: context.turno, acao: acao, codigoLido: codigoLido, responsavel: loggedUserBarcode, dataHora: dataHora, gestorNome: (gestorObj ? gestorObj.Nome : 'Desconhecido') });
+      sendInBackground('registrarAcao', { 
+        idData: context.dataId, idGestor: context.gestorId, turno: context.turno, 
+        acao: acao, codigoLido: codigoLido, responsavel: loggedUserBarcode, dataHora: dataHora, 
+        gestorNome: (gestorObj ? gestorObj.Nome : 'Desconhecido') 
+      });
     }
 
     function consultarHistoricoLocal() {
@@ -559,6 +601,7 @@
       html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
     }
 
+    // --- MATRIZ E RESUMO (SEPARADOS POR TURNO) ---
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select'); sel.innerHTML = '';
       db.periodos.slice().reverse().forEach(p => { sel.innerHTML += `<option value="${p.ID}">${formatISOtoBR(p.DataInicial)} a ${formatISOtoBR(p.DataFinal)}</option>`; });
@@ -577,13 +620,17 @@
     }
 
     function renderizarMatrizControle() {
-      let perId = document.getElementById('controle-periodo-select').value; let tb = document.getElementById('tb-matriz'); tb.innerHTML = '';
-      let datasPer = db.datas.filter(d => d.ID_Periodo === perId).sort((a,b) => String(a.DataISO).localeCompare(String(b.DataISO)));
-      if(datasPer.length === 0) { tb.innerHTML = '<tr><td>Nenhuma data.</td></tr>'; return; }
+      let perId = document.getElementById('controle-periodo-select').value; 
+      let turnoSel = document.getElementById('controle-turno-select').value;
+      let tb = document.getElementById('tb-matriz'); tb.innerHTML = '';
+      
+      let datasPer = db.datas.filter(d => d.ID_Periodo === perId && d.Turno === turnoSel).sort((a,b) => String(a.DataISO).localeCompare(String(b.DataISO)));
+      if(datasPer.length === 0) { tb.innerHTML = '<tr><td>Nenhuma data criada para este turno.</td></tr>'; return; }
       
       let thead = '<thead><tr><th>Gestor</th>'; datasPer.forEach(d => { let dF = formatISOtoBR(d.DataISO) || d.DataString; thead += `<th>${dF.substring(0, 5)}</th>`; }); thead += '</tr></thead>';
       let tbody = '<tbody>';
-      db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(gestor => {
+      
+      db.gestores.filter(g => g.Turno === turnoSel).sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(gestor => {
         tbody += `<tr><td>${gestor.Nome}</td>`;
         datasPer.forEach(d => {
           let sD = db.statusDiario.find(s => s.ID_Data === d.ID && s.ID_Gestor === gestor.ID);
@@ -602,9 +649,37 @@
       tbody += '</tbody>'; tb.innerHTML = thead + tbody;
     }
 
-    function abrirGestoresConfig() { let div = document.getElementById('lista-config-gestores'); div.innerHTML = ''; db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { div.innerHTML += `<div class="btn" style="padding: 10px; cursor: default;"><span style="flex-grow:1;">${g.Nome}</span><button class="icon-btn" onclick="editarGestor('${g.ID}')">✏️</button><button class="icon-btn" onclick="excluirGestor('${g.ID}')" style="color:var(--red);">❌</button></div>`; }); abrirModal('modal-gestores-config'); }
-    function salvarNovoGestor() { let editId = document.getElementById('edit-gestor-id').value; let nome = document.getElementById('nome-gestor').value; if(!nome) return; let finalId = editId || generateID(); if (editId) { let g = db.gestores.find(x => x.ID === editId); if (g) g.Nome = nome; } else db.gestores.push({ ID: finalId, Nome: nome }); saveDBLocal(); abrirGestoresConfig(); fecharModal('modal-add-gestor'); sendInBackground('salvarGestor', { id: finalId, nome: nome }); }
-    function editarGestor(id) { let g = db.gestores.find(item => item.ID === id); if(!g) return; document.getElementById('edit-gestor-id').value = g.ID; document.getElementById('nome-gestor').value = g.Nome; abrirModal('modal-add-gestor'); }
+    // --- CONFIGURAÇÃO DE GESTORES (AGORA POR TURNO) ---
+    function abrirGestoresConfig() { 
+      let div = document.getElementById('lista-config-gestores'); div.innerHTML = ''; 
+      db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { 
+        div.innerHTML += `<div class="btn" style="padding: 10px; cursor: default;"><span style="flex-grow:1;">${g.Nome}</span><button class="icon-btn" onclick="editarGestor('${g.ID}')">✏️</button><button class="icon-btn" onclick="excluirGestor('${g.ID}')" style="color:var(--red);">❌</button></div>`; 
+      }); 
+      abrirModal('modal-gestores-config'); 
+    }
+    
+    function salvarNovoGestor() { 
+      let editId = document.getElementById('edit-gestor-id').value; 
+      let nome = document.getElementById('nome-gestor').value; 
+      let turnoSel = document.getElementById('turno-gestor').value; // Pega o turno do form
+      if(!nome) return; 
+      let finalId = editId || generateID(); 
+      if (editId) { 
+        let g = db.gestores.find(x => x.ID === editId); if (g) { g.Nome = nome; g.Turno = turnoSel; } 
+      } else {
+        db.gestores.push({ ID: finalId, Nome: nome, Turno: turnoSel }); 
+      }
+      saveDBLocal(); abrirGestoresConfig(); fecharModal('modal-add-gestor'); sendInBackground('salvarGestor', { id: finalId, nome: nome, turno: turnoSel }); 
+    }
+    
+    function editarGestor(id) { 
+      let g = db.gestores.find(item => item.ID === id); if(!g) return; 
+      document.getElementById('edit-gestor-id').value = g.ID; 
+      document.getElementById('nome-gestor').value = g.Nome; 
+      document.getElementById('turno-gestor').value = g.Turno || 'A';
+      abrirModal('modal-add-gestor'); 
+    }
+    
     function excluirGestor(id) { if(confirm("Deseja remover?")) { db.gestores = db.gestores.filter(g => g.ID !== id); saveDBLocal(); abrirGestoresConfig(); sendInBackground('excluirGestor', { id: id }); } }
   </script>
 </body>
