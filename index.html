@@ -398,9 +398,8 @@
     }
     function fazerLogout() { loggedUserBarcode = null; atualizarUIUsuario(); alert("Desconectado."); }
 
-    // --- CÂMERA BLINDADA: 3 LEITURAS IDENTICAS SEGUIDAS E TRAVA UNICA ---
-    let lastScannedCode = "";
-    let scanMatchCount = 0;
+    // --- CÂMERA BLINDADA: VOTAÇÃO MELHOR DE 3 ---
+    let scanHistory = [];
     let isScanning = false;
 
     function abrirCamera(msg, callback) {
@@ -409,9 +408,8 @@
       document.getElementById('scan-line').style.display = 'block';
       currentScanCallback = callback;
       
-      lastScannedCode = ""; 
-      scanMatchCount = 0;
-      isScanning = true; // Libera o scanner
+      scanHistory = []; 
+      isScanning = true;
       
       cameraScanner = new Html5Qrcode("reader");
       let configCamera = { fps: 20, qrbox: { width: 280, height: 120 }, disableFlip: false };
@@ -419,30 +417,39 @@
       cameraScanner.start(
         { facingMode: "environment" }, configCamera,
         (decodedText) => { 
-          if (!isScanning) return; // Se já bateu a meta, ignora tudo.
+          if (!isScanning) return; 
 
           let codigoLimpo = decodedText.trim();
-          
           if (codigoLimpo.length > 16 || codigoLimpo.length < 4) return;
           
-          if (codigoLimpo !== lastScannedCode) {
-             lastScannedCode = codigoLimpo; 
-             scanMatchCount = 1; 
-             return;
+          scanHistory.push(codigoLimpo);
+          
+          // Mantém apenas os últimos 3 códigos lidos
+          if (scanHistory.length > 3) {
+             scanHistory.shift(); 
           }
           
-          scanMatchCount++;
+          // Verifica se algum código apareceu 2 vezes entre os últimos 3 lidos (Desempate)
+          let counts = {};
+          let winner = null;
+          for (let code of scanHistory) {
+              counts[code] = (counts[code] || 0) + 1;
+              if (counts[code] >= 2) {
+                  winner = code;
+                  break;
+              }
+          }
           
-          // Chegou a 3 leituras consecutivas do MESMO código? Manda ver!
-          if (scanMatchCount >= 3) {
-             isScanning = false; // Fecha a porta imediatamente
+          // Se tivermos um vencedor, fecha a câmera e envia
+          if (winner) {
+             isScanning = false;
              fecharCamera(); 
              voltarTela(); 
              
              if (currentScanCallback) {
                  let runCb = currentScanCallback;
-                 currentScanCallback = null; // Zera para não correr risco
-                 runCb(codigoLimpo); 
+                 currentScanCallback = null; 
+                 runCb(winner); 
              }
           }
         }, 
@@ -668,7 +675,6 @@
       tbody += '</tbody>'; tb.innerHTML = thead + tbody;
     }
 
-    // --- NOVA LÓGICA DE GESTORES ---
     function abrirGestoresConfig() { 
       let div = document.getElementById('lista-config-gestores'); div.innerHTML = ''; 
       db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { 
