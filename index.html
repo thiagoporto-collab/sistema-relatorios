@@ -202,7 +202,8 @@
     </div>
   </div>
 
-  <div id="modal-resumo" class="modal-overlay">
+  <!-- AQUI FOI ONDE A MÁGICA ACONTECEU: Adicionei z-index: 1100 para sobrepor a Matriz -->
+  <div id="modal-resumo" class="modal-overlay" style="z-index: 1100;">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-resumo')">×</span>
       <h3 style="margin-top:0; color: var(--primary);">Resumo do Relatório</h3>
@@ -257,7 +258,11 @@
     };
 
     let db = JSON.parse(localStorage.getItem('relatoriosDB')) || { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [], nomes: [] };
-    let loggedUserBarcode = localStorage.getItem('loggedUserBarcode') || null;
+    
+    // AQUI FOI ONDE A MÁGICA ACONTECEU: Removemos o carregamento do localStorage!
+    // Ao recarregar a página com F5, a variável nasce vazia e obriga a relogar.
+    let loggedUserBarcode = null; 
+    
     let cameraScanner = null;
     let currentScanCallback = null;
     let context = { periodoId: null, turno: null, dataId: null, gestorId: null };
@@ -269,7 +274,7 @@
       sendInBackground('sincronizar', {});
     };
 
-    // Resolução de Nomes Local -> Retorna SOMENTE NOME ou CÓDIGO (se não achar)
+    // Resolução de Nomes Local
     function getNomeLocal(codigo) {
       if (!codigo) return '';
       if (ADMINS[codigo]) return ADMINS[codigo];
@@ -331,7 +336,6 @@
       return str;
     }
 
-    // Navegação
     function navegar(idTela) { if (currentScreen === idTela) return; historyStack.push(currentScreen); document.getElementById(currentScreen).classList.remove('active-screen'); currentScreen = idTela; document.getElementById(currentScreen).classList.add('active-screen'); fecharCamera(); }
     function voltarTela() { if (historyStack.length > 0) { let p = historyStack.pop(); document.getElementById(currentScreen).classList.remove('active-screen'); currentScreen = p; document.getElementById(currentScreen).classList.add('active-screen'); fecharCamera(); } else irParaHome(); }
     function irParaHome() { historyStack = []; document.getElementById(currentScreen).classList.remove('active-screen'); currentScreen = 'screen-home'; document.getElementById(currentScreen).classList.add('active-screen'); fecharCamera(); }
@@ -352,7 +356,15 @@
         clearTimeout(timeoutId); delete window[callbackName]; 
         if (script.parentNode) script.parentNode.removeChild(script);
         if (response && response.status === 'success') {
-          if (action === 'sincronizar' && response.data) { db = response.data; saveDBLocal(); renderTelaAtual(); }
+          if (action === 'sincronizar' && response.data) { 
+            db = response.data; 
+            saveDBLocal(); 
+            atualizarUIUsuario(); 
+            renderTelaAtual(); 
+            if (document.getElementById('modal-historico').style.display === 'block') {
+               consultarHistoricoLocal();
+            }
+          }
           if (cb) cb(response.data);
         }
       };
@@ -373,12 +385,12 @@
       if(loggedUserBarcode) { renderPeriodos(); navegar('screen-periodos'); }
       else {
         abrirCamera("Escaneie seu crachá para logar.", (codigo) => {
-          loggedUserBarcode = codigo; localStorage.setItem('loggedUserBarcode', codigo);
+          loggedUserBarcode = codigo; 
           atualizarUIUsuario(); renderPeriodos(); navegar('screen-periodos');
         });
       }
     }
-    function fazerLogout() { loggedUserBarcode = null; localStorage.removeItem('loggedUserBarcode'); atualizarUIUsuario(); alert("Desconectado."); }
+    function fazerLogout() { loggedUserBarcode = null; atualizarUIUsuario(); alert("Desconectado."); }
 
     function abrirCamera(msg, callback) {
       navegar('screen-camera'); document.getElementById('camera-instructions').innerText = msg; currentScanCallback = callback;
@@ -397,7 +409,6 @@
       if (currentScanCallback) currentScanCallback(code);
     }
 
-    // Períodos
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos'); div.innerHTML = '';
       if(!db.periodos || db.periodos.length === 0) { div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhum período criado.</p>'; return; }
@@ -418,7 +429,6 @@
     function preSelecionarPeriodo(id) { context.periodoId = id; abrirModal('modal-selecionar-turno'); }
     function entrarPeriodo(turno) { context.turno = turno; document.getElementById('lbl-turno').innerText = turno; fecharModal('modal-selecionar-turno'); renderDatas(); navegar('screen-datas'); }
 
-    // Datas
     function renderDatas() {
       let div = document.getElementById('lista-datas'); div.innerHTML = '';
       let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
@@ -495,25 +505,18 @@
       sendInBackground('registrarAcao', { idData: context.dataId, idGestor: context.gestorId, turno: context.turno, acao: acao, codigoLido: codigoLido, responsavel: loggedUserBarcode, dataHora: dataHora, gestorNome: (gestorObj ? gestorObj.Nome : 'Desconhecido') });
     }
 
-    // --- CONSULTA HISTÓRICO COM NOMENCLATURA AJUSTADA ---
     function consultarHistoricoLocal() {
       fecharModal('modal-acoes'); abrirModal('modal-historico');
       let historico = db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
       if(!historico || historico.length === 0) { document.getElementById('conteudo-historico').innerHTML = "<p style='text-align:center;'>Nenhuma ação registrada.</p>"; return; }
       
-      // Cabeçalhos renomeados conforme solicitado
       let html = '<table class="matrix-table" style="width:100%;"><thead><tr><th>Ação</th><th>Pessoa</th><th>Data/Hora</th><th>Admin</th></tr></thead><tbody>';
-      
       historico.forEach(h => {
         let aStr = h.acao || h.Acao; let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
-        
-        // Puxa o nome da pessoa lida ou exibe o código puro
-        let nomePessoa = getNomeLocal(h.alvo || h.CodigoLido); 
-        // Puxa o nome do admin ou exibe o código puro
+        let nomeAlvo = getNomeLocal(h.alvo || h.CodigoLido); 
         let nomeAdmin = getNomeLocal(h.admin || h.ResponsavelLogin); 
         let dh = formatDateTimeBR(h.dataHora || h.DataHora);
-        
-        html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomePessoa}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
+        html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomeAlvo}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
       });
       html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
     }
@@ -530,7 +533,7 @@
       let ent = historico.find(h => h.Acao === 'Entregar'); let dev = historico.find(h => h.Acao === 'Devolver');
 
       let html = `<p><strong>Gestor:</strong> ${gestor.Nome}</p><p><strong>Data:</strong> ${formatISOtoBR(d.DataISO) || d.DataString}</p><hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">`;
-      if (ent) { html += `<div style="background: var(--red-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;"><strong style="color: #991b1b;">🔴 ENTREGUE:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(ent.ResponsavelLogin)}<br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(ent.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(ent.DataHora)}</div>`; }
+      if (ent) { html += `<div style="background: var(--red-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;"><strong style="color: #991b1b;">🔴 ENTREGUE:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(ent.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(ent.ResponsavelLogin)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(ent.DataHora)}</div>`; }
       if (dev) { html += `<div style="background: var(--green-light); padding: 10px; border-radius: 8px;"><strong style="color: #065f46;">🟢 DEVOLVIDO:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(dev.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(dev.ResponsavelLogin)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(dev.DataHora)}</div>`; }
       document.getElementById('conteudo-resumo').innerHTML = html; abrirModal('modal-resumo');
     }
