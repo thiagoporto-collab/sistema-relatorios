@@ -165,7 +165,12 @@
   <div id="screen-contratos-colab" class="screen">
     <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Colaboradores <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
     <div class="container">
-      <button class="btn btn-action" style="background: var(--red); width: 100%; margin-bottom: 20px; font-size: 1.1rem; padding: 15px;" onclick="entregarColetivoContrato()">📦 ENTREGAR COLETIVO</button>
+      
+      <div class="btn-group-row" style="margin-bottom: 20px;">
+        <button class="btn btn-action" style="background: var(--red); width: 50%; font-size: 0.95rem; padding: 12px;" onclick="entregarColetivoContrato()">📦 ENTREGAR TODOS</button>
+        <button class="btn btn-action" style="background: var(--green); width: 50%; font-size: 0.95rem; padding: 12px;" onclick="devolverColetivoContrato()">📦 DEVOLVER TODOS</button>
+      </div>
+
       <div style="display:flex; gap:10px; margin-bottom:15px;">
         <input type="number" id="input-mat-colab" placeholder="Matrícula (Ex: 0012345)" style="margin:0; flex:1;">
         <button class="btn-primary" style="width:auto; padding:0 20px;" onclick="addColabContrato()">Adicionar</button>
@@ -324,9 +329,15 @@
   <div id="modal-painel-contratos" class="modal-overlay" style="background: var(--bg);">
     <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 20px; display: flex; flex-direction: column;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3 style="margin: 0; color: var(--primary);">Painel Geral de Contratos</h3>
+        <h3 style="margin: 0; color: var(--primary);">Painel de Contratos</h3>
         <button class="btn-primary" style="padding: 8px 15px; width: auto; background: var(--gray);" onclick="fecharModal('modal-painel-contratos')">✖ Fechar</button>
       </div>
+      
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom: 15px;">
+        <label style="margin:0;">Mês:</label>
+        <select id="filtro-mes-painel" onchange="renderizarMatrizContratos()" style="margin: 0; flex:1; font-weight: bold;"></select>
+      </div>
+
       <div style="overflow: auto; flex-grow: 1; border: 1px solid var(--border); border-radius: 8px; background: #fff;">
         <table class="matrix-table" id="tb-matriz-contratos"></table>
       </div>
@@ -935,7 +946,71 @@
           sendInBackground('registrarAcaoContratoColetivo', { registros: payloadRegistros });
       });
     }
+    // --- NOVO: FUNÇÃO DE DEVOLVER COLETIVO ---
+    function devolverColetivoContrato() {
+      let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
+      if(colabs.length === 0) return alert("Nenhum colaborador adicionado a este gestor!");
+      
+      if(!db.contratosRegistros) db.contratosRegistros = [];
+      
+      // Separa apenas os que foram ENTREGUES mas NÃO DEVOLVIDOS
+      let pendentes = [];
+      colabs.forEach(c => {
+         let historico = db.contratosRegistros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
+         let entregou = historico.some(h => h.Acao === 'Entregar');
+         let devolveu = historico.some(h => h.Acao === 'Devolver');
+         
+         if(entregou && !devolveu) pendentes.push(c);
+      });
+      
+      if(pendentes.length === 0) return alert("Não há contratos aguardando devolução!");
+
+      abrirCamera(`Escaneie o crachá de QUEM ESTÁ DEVOLVENDO os ${pendentes.length} contratos.`, (codigoLidoScanner) => {
+          let dh = new Date().toLocaleString("pt-BR");
+          let payloadRegistros = [];
+          
+          pendentes.forEach(c => {
+             let novoReg = {
+               ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: c.Matricula,
+               Acao: 'Devolver', CodigoLido: codigoLidoScanner, AdminLogado: loggedUserBarcode, DataHora: dh
+             };
+             db.contratosRegistros.push(novoReg);
+             payloadRegistros.push({ ...novoReg, responsavel: loggedUserBarcode });
+          });
+          
+          saveDBLocal(); renderListaColabContrato();
+          sendInBackground('registrarAcaoContratoColetivo', { registros: payloadRegistros });
+      });
+    }
+
+
+    // --- PAINEL GERAL (POR MÊS - MAIS RECENTE PRIMEIRO) ---
     function abrirPainelContratos() {
+      let sel = document.getElementById('filtro-mes-painel');
+      sel.innerHTML = '';
+      
+      let mesesSet = new Set();
+      (db.contratosDatas || []).forEach(d => {
+        // T12:00:00 resolve problema de fuso horário no javascript
+        let dataObj = new Date(d.DataISO + "T12:00:00");
+        if (!isNaN(dataObj.getTime())) {
+            let mesAno = String(dataObj.getMonth() + 1).padStart(2, '0') + '/' + dataObj.getFullYear();
+            mesesSet.add(mesAno);
+        }
+      });
+      
+      // Ordena decrescente (ex: 09/2026 antes de 08/2026)
+      let mesesArr = Array.from(mesesSet).sort((a,b) => {
+        let [mA, yA] = a.split('/'); let [mB, yB] = b.split('/');
+        return new Date(yB, mB - 1) - new Date(yA, mA - 1);
+      });
+
+      if(mesesArr.length === 0) {
+         sel.innerHTML = '<option value="">Sem datas cadastradas</option>';
+      } else {
+         mesesArr.forEach(m => sel.innerHTML += `<option value="${m}">${m}</option>`);
+      }
+
       renderizarMatrizContratos();
       abrirModal('modal-painel-contratos');
     }
@@ -944,9 +1019,20 @@
       let tb = document.getElementById('tb-matriz-contratos');
       tb.innerHTML = '';
       
-      let datasContratos = (db.contratosDatas || []).sort((a,b) => String(a.DataISO).localeCompare(String(b.DataISO)));
+      let mesSelecionado = document.getElementById('filtro-mes-painel').value;
+      
+      // Filtra pelo Mês selecionado e ordena as datas das mais recentes (maiores) para as antigas
+      let datasContratos = (db.contratosDatas || [])
+        .filter(d => {
+           if(!mesSelecionado) return true;
+           let dataObj = new Date(d.DataISO + "T12:00:00");
+           let mesAno = String(dataObj.getMonth() + 1).padStart(2, '0') + '/' + dataObj.getFullYear();
+           return mesAno === mesSelecionado;
+        })
+        .sort((a,b) => String(b.DataISO).localeCompare(String(a.DataISO)));
+      
       if(datasContratos.length === 0) { 
-        tb.innerHTML = '<tr><td style="padding: 20px;">Nenhuma data de contrato cadastrada.</td></tr>'; 
+        tb.innerHTML = '<tr><td style="padding: 20px;">Nenhuma data para este mês.</td></tr>'; 
         return; 
       }
       
@@ -963,7 +1049,7 @@
       let gestoresFiltrados = (db.contratosListaGestores || []).filter(g => gestoresVistos.has(g.ID)).sort((a,b) => a.Nome.localeCompare(b.Nome));
       
       if(gestoresFiltrados.length === 0) {
-          tbody += `<tr><td colspan="${datasContratos.length + 1}">Nenhum gestor vinculado às datas.</td></tr>`;
+          tbody += `<tr><td colspan="${datasContratos.length + 1}">Nenhum gestor vinculado.</td></tr>`;
       }
 
       gestoresFiltrados.forEach(gestor => {
