@@ -8,14 +8,23 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     :root {
-      var(--primary): #0f172a; var(--secondary): #334155; var(--bg): #f8fafc;
-      var(--text): #1e293b; var(--text-light): #64748b;
-      var(--green): #10b981; var(--green-light): #d1fae5;
-      var(--yellow): #f59e0b; var(--yellow-light): #fef3c7;
-      var(--red): #ef4444; var(--red-light): #fee2e2;
-      var(--gray): #94a3b8; var(--gray-light): #f1f5f9;
-      var(--card-bg): #ffffff; var(--border): #e2e8f0;
-      var(--shadow): 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      /* CORREÇÃO APLICADA AQUI: Remoção do "var()" na declaração das variáveis */
+      --primary: #0f172a; 
+      --secondary: #334155; 
+      --bg: #f8fafc;
+      --text: #1e293b; 
+      --text-light: #64748b;
+      --green: #10b981; 
+      --green-light: #d1fae5;
+      --yellow: #f59e0b; 
+      --yellow-light: #fef3c7;
+      --red: #ef4444; 
+      --red-light: #fee2e2;
+      --gray: #94a3b8; 
+      --gray-light: #f1f5f9;
+      --card-bg: #ffffff; 
+      --border: #e2e8f0;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
 
     body {
@@ -291,10 +300,12 @@
     // --- LÓGICA DE TELA CHEIA: 2 Toques Entra, 3 Toques Sai ---
     let clickCount = 0;
     let clickTimer = null;
-    document.addEventListener('click', function() {
+    document.addEventListener('click', function(e) {
+      if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; // Evita disparar ao digitar
+      
       clickCount++;
       if (clickCount === 1) {
-        clickTimer = setTimeout(() => { clickCount = 0; }, 400); // 400ms para aguardar os outros toques
+        clickTimer = setTimeout(() => { clickCount = 0; }, 400); 
       } else if (clickCount === 2) {
         clearTimeout(clickTimer);
         clickTimer = setTimeout(() => {
@@ -409,7 +420,6 @@
         div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhum período criado.</p>'; return;
       }
       
-      // Inverte o array para mostrar o último criado em cima
       let periodosReverse = db.periodos.slice().reverse();
       
       periodosReverse.forEach(p => {
@@ -470,7 +480,6 @@
       let div = document.getElementById('lista-datas');
       div.innerHTML = '';
       
-      // Ordena por DataISO, do mais recente pro mais antigo
       let datasFiltradas = db.datas
         .filter(d => d.ID_Periodo === context.periodoId)
         .sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
@@ -516,7 +525,6 @@
       let divCheck = document.getElementById('list-check-gestores');
       divCheck.innerHTML = '';
       
-      // Gestores em Ordem alfabética
       let gestoresOrdenados = db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome));
       
       gestoresOrdenados.forEach(g => {
@@ -598,7 +606,6 @@
       
       let statusData = db.statusDiario.filter(s => s.ID_Data === idData && String(s.TeveRelatorio).toLowerCase() === 'true');
       
-      // Ordenação alfabética para a exibição dos botões do Gestor
       let gestoresRender = [];
       statusData.forEach(s => {
         let gestor = db.gestores.find(g => g.ID === s.ID_Gestor);
@@ -644,7 +651,6 @@
       });
       saveDBLocal(); entrarData(context.dataId);
       
-      // Evita o problema do gestor vazio mandando o Nome dele pra api
       let gestorObj = db.gestores.find(g => g.ID === context.gestorId);
       let nomeDoGestor = gestorObj ? gestorObj.Nome : 'Desconhecido';
       
@@ -686,7 +692,7 @@
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select');
       sel.innerHTML = '';
-      let periodosReverse = db.periodos.slice().reverse(); // Lista reversa p/ select tbm
+      let periodosReverse = db.periodos.slice().reverse(); 
       periodosReverse.forEach(p => {
         sel.innerHTML += `<option value="${p.ID}">${formatISOtoBR(p.DataInicial)} a ${formatISOtoBR(p.DataFinal)}</option>`;
       });
@@ -699,7 +705,6 @@
       let tb = document.getElementById('tb-matriz');
       tb.innerHTML = '';
       
-      // Ordena por data
       let datasPer = db.datas.filter(d => d.ID_Periodo === perId).sort((a,b) => String(a.DataISO).localeCompare(String(b.DataISO)));
       if(datasPer.length === 0) { tb.innerHTML = '<tr><td>Nenhuma data cadastrada.</td></tr>'; return; }
       
@@ -710,7 +715,6 @@
       });
       thead += '</tr></thead>';
       
-      // ORDENA OS GESTORES EM ORDEM ALFABÉTICA NA MATRIZ
       let gestoresOrdenados = db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome));
       
       let tbody = '<tbody>';
