@@ -258,6 +258,28 @@
     </div>
   </div>
 
+  <!-- Matriz de Controle Faltas -->
+  <div id="modal-controle" class="modal-overlay" style="background: var(--bg);">
+    <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 20px; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: var(--primary);">Matriz de Controle</h3>
+        <button class="btn-primary" style="padding: 8px 15px; width: auto; background: var(--gray);" onclick="fecharModal('modal-controle')">✖ Fechar</button>
+      </div>
+      
+      <div style="display:flex; gap:10px; margin-bottom: 10px;">
+        <select id="controle-periodo-select" onchange="renderizarMatrizControle()" style="flex:2; margin:0;"></select>
+        <select id="controle-turno-select" onchange="renderizarMatrizControle()" style="flex:1; margin:0;">
+          <option value="A">Turno A</option>
+          <option value="B">Turno B</option>
+        </select>
+      </div>
+
+      <div style="overflow: auto; flex-grow: 1; border: 1px solid var(--border); border-radius: 8px; background: #fff;">
+        <table class="matrix-table" id="tb-matriz"></table>
+      </div>
+    </div>
+  </div>
+
   <!-- Gestores Config (Relatórios de Faltas) -->
   <div id="modal-gestores-config" class="modal-overlay">
     <div class="modal-content">
@@ -506,7 +528,6 @@
           let codigoLimpo = decodedText.trim();
           if (codigoLimpo.length > 16 || codigoLimpo.length < 4) return;
           
-          // Lógica de Leitura Dupla/Tripla de segurança (Rejeita código se for lido só 1 vez isolada)
           scanHistory.push(codigoLimpo);
           if (scanHistory.length > 3) scanHistory.shift(); 
           
@@ -690,7 +711,6 @@
       historico.forEach(h => {
         let aStr = h.acao || h.Acao; let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
         
-        // Pega exatamente a pessoa que escaneou a câmera
         let nomeAlvo = getNomeLocal(h.CodigoLido); 
         let nomeAdmin = getNomeLocal(h.AdminLogado || h.admin || h.ResponsavelLogin); 
         let dh = formatDateTimeBR(h.dataHora || h.DataHora);
@@ -698,6 +718,106 @@
         html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomeAlvo}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
       });
       html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
+    }
+
+    // =======================================================
+    // MATRIZ DE CONTROLE (RELATÓRIO DE FALTAS) - RESTAURADA
+    // =======================================================
+    function abrirControle() {
+      let sel = document.getElementById('controle-periodo-select'); 
+      if(!sel) return;
+      sel.innerHTML = '';
+      
+      (db.periodos || []).slice().reverse().forEach(p => { 
+          sel.innerHTML += `<option value="${p.ID}">${formatISOtoBR(p.DataInicial)} a ${formatISOtoBR(p.DataFinal)}</option>`; 
+      });
+      
+      renderizarMatrizControle(); 
+      abrirModal('modal-controle');
+    }
+
+    function renderizarMatrizControle() {
+      let selPeriodo = document.getElementById('controle-periodo-select');
+      if (!selPeriodo || !selPeriodo.value) return; 
+      
+      let perId = selPeriodo.value; 
+      let turnoSel = document.getElementById('controle-turno-select').value;
+      let tb = document.getElementById('tb-matriz'); 
+      tb.innerHTML = '';
+      
+      let datasPer = (db.datas || []).filter(d => d.ID_Periodo === perId && d.Turno === turnoSel).sort((a,b) => String(a.DataISO).localeCompare(String(b.DataISO)));
+      
+      if(datasPer.length === 0) { 
+          tb.innerHTML = '<tr><td style="padding: 15px;">Nenhuma data criada para este turno.</td></tr>'; 
+          return; 
+      }
+      
+      let thead = '<thead><tr><th>Gestor</th>'; 
+      datasPer.forEach(d => { 
+          let dF = formatISOtoBR(d.DataISO) || d.DataString; 
+          thead += `<th>${dF.substring(0, 5)}</th>`; 
+      }); 
+      thead += '</tr></thead>';
+      
+      let tbody = '<tbody>';
+      
+      (db.gestores || []).filter(g => g.Turno === turnoSel).sort((a,b) => (a.Nome || '').localeCompare(b.Nome || '')).forEach(gestor => {
+        tbody += `<tr><td>${gestor.Nome}</td>`;
+        
+        datasPer.forEach(d => {
+          let sD = (db.statusDiario || []).find(s => s.ID_Data === d.ID && s.ID_Gestor === gestor.ID);
+          let teve = sD && String(sD.TeveRelatorio).toLowerCase() === 'true';
+          let classe = 'cell-none'; 
+          let texto = '-'; 
+          let acaoClick = '';
+          
+          if(teve) {
+            let hist = (db.registros || []).filter(r => r.ID_Data === d.ID && r.ID_Gestor === gestor.ID);
+            if(hist.some(h => h.Acao === 'Devolver')) { 
+                classe = 'cell-green'; 
+                texto = 'OK'; 
+                acaoClick = `onclick="mostrarResumoGestor('${d.ID}', '${gestor.ID}')"`; 
+            } else if(hist.some(h => h.Acao === 'Entregar')) { 
+                classe = 'cell-red'; 
+                texto = 'Entregue'; 
+                acaoClick = `onclick="entrarData('${d.ID}')"`; 
+            } else { 
+                classe = 'cell-yellow'; 
+                texto = 'Pendente'; 
+                acaoClick = `onclick="entrarData('${d.ID}')"`; 
+            }
+          }
+          tbody += `<td class="${classe}" ${acaoClick}>${texto}</td>`;
+        });
+        tbody += '</tr>';
+      });
+      
+      tbody += '</tbody>'; 
+      tb.innerHTML = thead + tbody;
+    }
+
+    function mostrarResumoGestor(idData, idGestor) {
+      let gestor = (db.gestores || []).find(g => g.ID === idGestor); 
+      let d = (db.datas || []).find(x => x.ID === idData);
+      if(!gestor || !d) return;
+
+      let historico = (db.registros || []).filter(r => r.ID_Data === idData && r.ID_Gestor === idGestor);
+      let ent = historico.find(h => h.Acao === 'Entregar'); 
+      let dev = historico.find(h => h.Acao === 'Devolver');
+
+      let html = `<p><strong>Gestor:</strong> ${gestor.Nome}</p><p><strong>Data:</strong> ${formatISOtoBR(d.DataISO) || d.DataString}</p><hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">`;
+      
+      if (ent) { 
+        let adminEnt = ent.AdminLogado || ent.ResponsavelLogin;
+        html += `<div style="background: var(--red-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;"><strong style="color: #991b1b;">🔴 ENTREGUE:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(ent.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(adminEnt)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(ent.DataHora)}</div>`; 
+      }
+      if (dev) { 
+        let adminDev = dev.AdminLogado || dev.ResponsavelLogin;
+        html += `<div style="background: var(--green-light); padding: 10px; border-radius: 8px;"><strong style="color: #065f46;">🟢 DEVOLVIDO:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(dev.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(adminDev)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(dev.DataHora)}</div>`; 
+      }
+      
+      document.getElementById('conteudo-resumo').innerHTML = html; 
+      abrirModal('modal-resumo');
     }
 
     // Config de Gestores (Faltas)
@@ -708,7 +828,7 @@
       }); 
       abrirModal('modal-gestores-config'); 
     }
-    function prepararModalNovoGestor() { document.getElementById('edit-gestor-id').value = ''; document.getElementById('nome-gestor').value = ''; document.getElementById('turno-gestor').value = context.turno || 'A'; document.getElementById('lbl-modal-gestor-titulo').innerText = "Novo Gestor"; abrirModal('modal-add-gestor'); }
+    function prepararModalNovoGestor() { document.getElementById('edit-gestor-id').value = ''; document.getElementById('nome-gestor').value = ''; document.getElementById('turno-gestor').value = context.turno || 'A'; document.getElementById('lbl-modal-gestor-titulo').innerText = "Novo Gestor (Faltas)"; abrirModal('modal-add-gestor'); }
     function salvarNovoGestor() { 
       let editId = document.getElementById('edit-gestor-id').value; let nomeRaw = document.getElementById('nome-gestor').value.trim(); let turnoSel = document.getElementById('turno-gestor').value;
       if(!nomeRaw) return; 
@@ -789,7 +909,6 @@
       sendInBackground('salvarGestoresContrato', { idData: context.dataId, gestores: checks });
     }
 
-    // ATUALIZADO: Exibe os gestores da data de contrato com Cores.
     function entrarDataContrato(idData) {
       context.dataId = idData;
       let div = document.getElementById('lista-contratos-gestores'); div.innerHTML = '';
@@ -798,7 +917,6 @@
       gestoresData.forEach(cg => {
         let g = (db.contratosListaGestores || []).find(x => x.ID === cg.ID_Gestor);
         if(g) {
-            // Lógica de cores baseada nos colaboradores
             let colabs = (db.contratosColab || []).filter(c => c.ID_Data === idData && c.ID_Gestor === g.ID);
             let total = colabs.length;
             let dev = 0; let ent = 0;
@@ -879,12 +997,10 @@
       abrirModal('modal-acoes');
     }
 
-    // ATUALIZADO: Abre a Câmera para confirmar entrega ou devolução do Contrato.
-    // 1. SUBSTITUA A FUNÇÃO DE AÇÃO INDIVIDUAL DOS CONTRATOS
+    // Ações INDIVIDUAIS de Contratos (Com Câmera)
     function dispararAcaoContrato(acao) {
       if(!db.contratosRegistros) db.contratosRegistros = [];
       
-      // Verifica se a ação já existe antes de abrir a câmera
       let jaExiste = db.contratosRegistros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(context.matriculaColab) && r.Acao === acao);
       if(jaExiste) {
           alert("Esta ação já foi registrada para esta pessoa.");
@@ -894,10 +1010,8 @@
       fecharModal('modal-acoes');
       let instrucao = acao === 'Entregar' ? "Escaneie o crachá de QUEM ESTÁ RECEBENDO." : "Escaneie o crachá de QUEM ESTÁ DEVOLVENDO.";
       
-      // Abre a câmera
       abrirCamera(instrucao, (codigoLidoScanner) => {
           let dh = new Date().toLocaleString("pt-BR");
-          
           db.contratosRegistros.push({
             ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: context.matriculaColab,
             Acao: acao, CodigoLido: codigoLidoScanner, AdminLogado: loggedUserBarcode, DataHora: dh
@@ -911,24 +1025,19 @@
       });
     }
 
+    // Ações COLETIVAS de Contratos (Com Câmera)
     function entregarColetivoContrato() {
       let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
       if(colabs.length === 0) return alert("Nenhum colaborador adicionado a este gestor!");
-      
       if(!db.contratosRegistros) db.contratosRegistros = [];
       
-      // Separa apenas os que ainda não foram entregues
       let pendentes = [];
       colabs.forEach(c => {
          let historico = db.contratosRegistros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
-         if(!historico.some(h => h.Acao === 'Entregar')) {
-             pendentes.push(c);
-         }
+         if(!historico.some(h => h.Acao === 'Entregar')) pendentes.push(c);
       });
-      
       if(pendentes.length === 0) return alert("Todos já constam como ENTREGUES!");
 
-      // Pede a câmera para saber quem está levando esse lote
       abrirCamera(`Escaneie o crachá de QUEM RECEBERÁ os ${pendentes.length} contratos.`, (codigoLidoScanner) => {
           let dh = new Date().toLocaleString("pt-BR");
           let payloadRegistros = [];
@@ -941,28 +1050,23 @@
              db.contratosRegistros.push(novoReg);
              payloadRegistros.push({ ...novoReg, responsavel: loggedUserBarcode });
           });
-          
           saveDBLocal(); renderListaColabContrato();
           sendInBackground('registrarAcaoContratoColetivo', { registros: payloadRegistros });
       });
     }
-    // --- NOVO: FUNÇÃO DE DEVOLVER COLETIVO ---
+
     function devolverColetivoContrato() {
       let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
       if(colabs.length === 0) return alert("Nenhum colaborador adicionado a este gestor!");
-      
       if(!db.contratosRegistros) db.contratosRegistros = [];
       
-      // Separa apenas os que foram ENTREGUES mas NÃO DEVOLVIDOS
       let pendentes = [];
       colabs.forEach(c => {
          let historico = db.contratosRegistros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
          let entregou = historico.some(h => h.Acao === 'Entregar');
          let devolveu = historico.some(h => h.Acao === 'Devolver');
-         
          if(entregou && !devolveu) pendentes.push(c);
       });
-      
       if(pendentes.length === 0) return alert("Não há contratos aguardando devolução!");
 
       abrirCamera(`Escaneie o crachá de QUEM ESTÁ DEVOLVENDO os ${pendentes.length} contratos.`, (codigoLidoScanner) => {
@@ -977,12 +1081,10 @@
              db.contratosRegistros.push(novoReg);
              payloadRegistros.push({ ...novoReg, responsavel: loggedUserBarcode });
           });
-          
           saveDBLocal(); renderListaColabContrato();
           sendInBackground('registrarAcaoContratoColetivo', { registros: payloadRegistros });
       });
     }
-
 
     // --- PAINEL GERAL (POR MÊS - MAIS RECENTE PRIMEIRO) ---
     function abrirPainelContratos() {
@@ -991,7 +1093,6 @@
       
       let mesesSet = new Set();
       (db.contratosDatas || []).forEach(d => {
-        // T12:00:00 resolve problema de fuso horário no javascript
         let dataObj = new Date(d.DataISO + "T12:00:00");
         if (!isNaN(dataObj.getTime())) {
             let mesAno = String(dataObj.getMonth() + 1).padStart(2, '0') + '/' + dataObj.getFullYear();
@@ -999,7 +1100,6 @@
         }
       });
       
-      // Ordena decrescente (ex: 09/2026 antes de 08/2026)
       let mesesArr = Array.from(mesesSet).sort((a,b) => {
         let [mA, yA] = a.split('/'); let [mB, yB] = b.split('/');
         return new Date(yB, mB - 1) - new Date(yA, mA - 1);
@@ -1018,10 +1118,8 @@
     function renderizarMatrizContratos() {
       let tb = document.getElementById('tb-matriz-contratos');
       tb.innerHTML = '';
-      
       let mesSelecionado = document.getElementById('filtro-mes-painel').value;
       
-      // Filtra pelo Mês selecionado e ordena as datas das mais recentes (maiores) para as antigas
       let datasContratos = (db.contratosDatas || [])
         .filter(d => {
            if(!mesSelecionado) return true;
