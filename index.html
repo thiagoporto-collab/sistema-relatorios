@@ -79,7 +79,7 @@
       </div>
 
       <button class="btn btn-primary" onclick="iniciarLogin('FALTAS')" style="font-size: 1.1rem; padding: 20px;">📄 RELATÓRIO DE FALTAS</button>
-      <button class="btn" style="justify-content: center; opacity: 0.4; cursor: not-allowed;">CONTRATOS</button>
+      <button class="btn btn-primary" onclick="iniciarLogin('CONTRATOS')" style="font-size: 1.1rem; padding: 20px; background: var(--yellow); color: #000;">📄 CONTRATOS</button>
       <p id="network-status" class="toast"></p>
     </div>
   </div>
@@ -140,6 +140,36 @@
       <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container" id="lista-gestores-data"></div>
+  </div>
+
+  <!-- TELA C1: DATAS CONTRATOS -->
+  <div id="screen-contratos-datas" class="screen">
+    <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Datas de Contratos <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
+    <div class="container">
+      <div class="btn-group-row">
+        <button class="btn-primary" style="width: 20%; font-size: 1.8rem; border-radius: 8px;" onclick="prepararModalDataContrato()">+</button>
+        <button class="btn-primary" style="width: 75%; background: var(--secondary);" onclick="alert('Painel geral em breve')">📊 PAINEL GERAL</button>
+      </div>
+      <div id="lista-contratos-datas"></div>
+    </div>
+  </div>
+
+  <!-- TELA C2: GESTORES DA DATA (CONTRATO) -->
+  <div id="screen-contratos-gestores" class="screen">
+    <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Gestores <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
+    <div class="container" id="lista-contratos-gestores"></div>
+  </div>
+
+  <!-- TELA C3: COLABORADORES DO GESTOR (CONTRATO) -->
+  <div id="screen-contratos-colab" class="screen">
+    <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Colaboradores <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
+    <div class="container">
+      <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <input type="number" id="input-mat-colab" placeholder="Matrícula (7 dígitos)" style="margin:0; flex:1;">
+        <button class="btn-primary" style="width:auto; padding:0 20px;" onclick="addColabContrato()">Adicionar</button>
+      </div>
+      <div id="lista-contratos-colab"></div>
+    </div>
   </div>
 
   <!-- === MODAIS === -->
@@ -269,6 +299,25 @@
     </div>
   </div>
 
+  <div id="modal-add-data-contrato" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-data-contrato')">×</span>
+      <h3>Nova Data (Fim Contrato)</h3>
+      <input type="hidden" id="edit-data-contrato-id">
+      <input type="date" id="data-contrato-nova">
+      <button class="btn-primary btn" onclick="salvarDataContrato()">Salvar Data</button>
+    </div>
+  </div>
+
+  <div id="modal-gestores-contrato" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-gestores-contrato')">×</span>
+      <h3>Selecione os Gestores</h3>
+      <div id="list-check-gestores-contrato" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); padding: 10px;"></div>
+      <button class="btn btn-action" style="background: var(--green); width:100%; margin-top:15px;" onclick="salvarGestoresContrato()">Salvar</button>
+    </div>
+  </div>
+
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
@@ -282,7 +331,8 @@
       "48192598918259": "Rodrigo"
     };
 
-    let db = JSON.parse(localStorage.getItem('relatoriosDB')) || { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [], nomes: [] };
+    let db = JSON.parse(localStorage.getItem('relatoriosDB')) || { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [], nomes: [], contratosDatas: [], contratosGestores: [], contratosColab: [], contratosRegistros: [] };
+    let moduloAtual = '';
     let loggedUserBarcode = null; 
     let cameraScanner = null;
     let currentScanCallback = null;
@@ -388,11 +438,16 @@
     }
 
     function iniciarLogin(modulo) {
-      if(loggedUserBarcode) { renderPeriodos(); navegar('screen-periodos'); }
-      else {
+      moduloAtual = modulo;
+      if(loggedUserBarcode) { 
+        if(modulo === 'FALTAS') { renderPeriodos(); navegar('screen-periodos'); }
+        if(modulo === 'CONTRATOS') { renderDatasContratos(); navegar('screen-contratos-datas'); }
+      } else {
         abrirCamera("Escaneie seu crachá para logar.", (codigo) => {
           loggedUserBarcode = codigo; 
-          atualizarUIUsuario(); renderPeriodos(); navegar('screen-periodos');
+          atualizarUIUsuario(); 
+          if(modulo === 'FALTAS') { renderPeriodos(); navegar('screen-periodos'); }
+          if(modulo === 'CONTRATOS') { renderDatasContratos(); navegar('screen-contratos-datas'); }
         });
       }
     }
@@ -576,8 +631,9 @@
     function abrirAcoesGestor(idGestor, nomeGestor) { context.gestorId = idGestor; document.getElementById('lbl-acao-gestor').innerText = nomeGestor; abrirModal('modal-acoes'); }
 
     function dispararAcao(acao) {
+      if(moduloAtual === 'CONTRATOS') return dispararAcaoContrato(acao); // Redireciona
       let jaExiste = db.registros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && r.Acao === acao);
-      if (jaExiste) { alert(`Opa! Este gestor já consta como ${acao.toUpperCase()} no sistema nesta data.`); return; }
+      // ... resto do codigo
       
       fecharModal('modal-acoes');
       let instrucao = acao === 'Entregar' ? "Escaneie o crachá de QUEM RECEBEU o relatório." : "Escaneie o crachá de QUEM DEVOLVEU o relatório.";
@@ -738,6 +794,134 @@
     }
     
     function excluirGestor(id) { if(confirm("Deseja remover?")) { db.gestores = db.gestores.filter(g => g.ID !== id); saveDBLocal(); abrirGestoresConfig(); sendInBackground('excluirGestor', { id: id }); } }
+
+    // =====================================
+    // MÓDULO CONTRATOS
+    // =====================================
+    function renderDatasContratos() {
+      let div = document.getElementById('lista-contratos-datas'); div.innerHTML = '';
+      let datas = (db.contratosDatas || []).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
+      datas.forEach(d => {
+        let dStr = formatISOtoBR(d.DataISO) || d.DataString;
+        div.innerHTML += `<div class="btn status-gray" style="padding: 12px; cursor:default;">
+          <div style="flex-grow:1; cursor:pointer;" onclick="entrarDataContrato('${d.ID}')"><strong>🗓️ ${dStr}</strong></div>
+          <button class="icon-btn" onclick="abrirModalGestoresContrato('${d.ID}')">👥</button>
+        </div>`;
+      });
+    }
+
+    function prepararModalDataContrato() { document.getElementById('edit-data-contrato-id').value = ''; document.getElementById('data-contrato-nova').value = ''; abrirModal('modal-add-data-contrato'); }
+    
+    function salvarDataContrato() {
+      let dt = document.getElementById('data-contrato-nova').value;
+      if(!dt) return;
+      let dtStr = formatISOtoBR(dt); let id = generateID();
+      if(!db.contratosDatas) db.contratosDatas = [];
+      db.contratosDatas.push({ID: id, DataString: dtStr, DataISO: dt});
+      saveDBLocal(); renderDatasContratos(); fecharModal('modal-add-data-contrato');
+      sendInBackground('salvarDataContrato', { id: id, dataStr: dtStr, dataISO: dt, isEdit: false });
+    }
+
+    function abrirModalGestoresContrato(idData) {
+      context.dataId = idData;
+      let div = document.getElementById('list-check-gestores-contrato'); div.innerHTML = '';
+      let gestoresData = (db.contratosGestores || []).filter(cg => cg.ID_Data === idData).map(cg => cg.ID_Gestor);
+      
+      db.gestores.sort((a,b)=>a.Nome.localeCompare(b.Nome)).forEach(g => {
+        let isChecked = gestoresData.includes(g.ID) ? 'checked' : '';
+        div.innerHTML += `<label style="display:block; padding:5px;"><input type="checkbox" value="${g.ID}" id="chk_c_${g.ID}" ${isChecked}> ${g.Nome}</label>`;
+      });
+      abrirModal('modal-gestores-contrato');
+    }
+
+    function salvarGestoresContrato() {
+      let checks = Array.from(document.querySelectorAll('#list-check-gestores-contrato input:checked')).map(c => c.value);
+      db.contratosGestores = (db.contratosGestores || []).filter(cg => cg.ID_Data !== context.dataId);
+      checks.forEach(gId => db.contratosGestores.push({ID_Data: context.dataId, ID_Gestor: gId}));
+      saveDBLocal(); fecharModal('modal-gestores-contrato');
+      sendInBackground('salvarGestoresContrato', { idData: context.dataId, gestores: checks });
+    }
+
+    function entrarDataContrato(idData) {
+      context.dataId = idData;
+      let div = document.getElementById('lista-contratos-gestores'); div.innerHTML = '';
+      let gestoresData = (db.contratosGestores || []).filter(cg => cg.ID_Data === idData);
+      
+      gestoresData.forEach(cg => {
+        let g = db.gestores.find(x => x.ID === cg.ID_Gestor);
+        if(g) div.innerHTML += `<button class="btn status-gray" onclick="entrarColabContrato('${idData}', '${g.ID}')">${g.Nome}</button>`;
+      });
+      navegar('screen-contratos-gestores');
+    }
+
+    function entrarColabContrato(idData, idGestor) {
+      context.dataId = idData; context.gestorId = idGestor;
+      renderListaColabContrato();
+      navegar('screen-contratos-colab');
+    }
+
+    function renderListaColabContrato() {
+      let div = document.getElementById('lista-contratos-colab'); div.innerHTML = '';
+      let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
+      
+      colabs.forEach(c => {
+        let pessoa = buscarPessoa(c.Matricula);
+        let nome = pessoa.matricula !== 'N/A' ? pessoa.nome : `Mat: ${c.Matricula}`;
+        
+        // Verifica status para cor (Verde = Devolvido, Vermelho = Entregue)
+        let hist = (db.contratosRegistros || []).filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
+        let corClasse = 'status-yellow';
+        if(hist.some(h => h.Acao === 'Devolver')) corClasse = 'status-green';
+        else if(hist.some(h => h.Acao === 'Entregar')) corClasse = 'status-red';
+
+        div.innerHTML += `<div class="btn ${corClasse}" style="padding:10px;">
+          <span style="flex-grow:1; cursor:pointer;" onclick="abrirAcoesContrato('${c.Matricula}', '${nome}')">${nome}</span>
+          <button class="icon-btn" style="color:var(--red);" onclick="removerColabContrato('${c.Matricula}')">❌</button>
+        </div>`;
+      });
+    }
+
+    function addColabContrato() {
+      let mat = document.getElementById('input-mat-colab').value.trim();
+      if(mat.length < 5) return alert("Matrícula inválida.");
+      if(!db.contratosColab) db.contratosColab = [];
+      if(db.contratosColab.some(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId && String(c.Matricula) === mat)) return alert("Colaborador já adicionado.");
+      
+      db.contratosColab.push({ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: mat});
+      document.getElementById('input-mat-colab').value = '';
+      saveDBLocal(); renderListaColabContrato();
+      sendInBackground('addColabContrato', { idData: context.dataId, idGestor: context.gestorId, matricula: mat });
+    }
+
+    function removerColabContrato(mat) {
+      if(!confirm("Remover colaborador?")) return;
+      db.contratosColab = db.contratosColab.filter(c => !(c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId && String(c.Matricula) === String(mat)));
+      saveDBLocal(); renderListaColabContrato();
+      sendInBackground('removerColabContrato', { idData: context.dataId, idGestor: context.gestorId, matricula: mat });
+    }
+
+    function abrirAcoesContrato(matricula, nome) {
+      context.matriculaColab = matricula;
+      document.getElementById('lbl-acao-gestor').innerText = nome;
+      abrirModal('modal-acoes'); // Reaproveita o modal de ações
+    }
+
+    function dispararAcaoContrato(acao) {
+      fecharModal('modal-acoes');
+      abrirCamera("Escaneie o crachá para confirmar " + acao, (codigo) => {
+        let dh = new Date().toLocaleString("pt-BR");
+        if(!db.contratosRegistros) db.contratosRegistros = [];
+        db.contratosRegistros.push({
+          ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: context.matriculaColab,
+          Acao: acao, CodigoLido: codigo, AdminLogado: loggedUserBarcode, DataHora: dh
+        });
+        saveDBLocal(); renderListaColabContrato();
+        sendInBackground('registrarAcaoContrato', {
+          idData: context.dataId, idGestor: context.gestorId, matricula: context.matriculaColab,
+          acao: acao, codigoLido: codigo, responsavel: loggedUserBarcode, dataHora: dh
+        });
+      });
+    }
   </script>
 </body>
 </html>
