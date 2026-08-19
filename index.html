@@ -407,22 +407,35 @@
 
     // --- CÂMERA APRIMORADA COM FOCO E RECORTE MAIS PRECISO ---
     function abrirCamera(msg, callback) {
-      navegar('screen-camera'); document.getElementById('camera-instructions').innerText = msg; currentScanCallback = callback;
+      navegar('screen-camera'); 
+      document.getElementById('camera-instructions').innerText = msg; 
+      currentScanCallback = callback;
+      
       cameraScanner = new Html5Qrcode("reader");
       
-      // CONFIGURAÇÃO RESTRITA PARA CÓDIGO DE BARRAS NUMÉRICO:
-      // fps alto para escanear rápido. qrbox no formato retangular para focar exatamente na linha do código.
+      // Mantivemos o formato retangular para facilitar a leitura de crachás, 
+      // mas removemos a restrição de foco que causava o bloqueio.
       let configCamera = { 
-        fps: 20, 
-        qrbox: { width: 300, height: 120 }, 
+        fps: 15, 
+        qrbox: { width: 280, height: 120 }, 
         disableFlip: false 
       };
 
-      // Tenta inicializar com foco contínuo para não perder as linhas do crachá
-      cameraScanner.start({ facingMode: "environment", advanced: [{ focusMode: "continuous" }] }, configCamera,
-        (decodedText) => { fecharCamera(); voltarTela(); if (currentScanCallback) currentScanCallback(decodedText); }, 
-        (err) => {}
-      ).catch(err => alert("Câmera bloqueada ou indisponível. Permita o uso."));
+      cameraScanner.start(
+        { facingMode: "environment" }, 
+        configCamera,
+        (decodedText) => { 
+          fecharCamera(); 
+          voltarTela(); 
+          if (currentScanCallback) currentScanCallback(decodedText); 
+        }, 
+        (err) => {
+          // Erros de frame são normais enquanto o código não é detectado, apenas ignoramos.
+        }
+      ).catch(err => {
+        console.error(err);
+        alert("Não foi possível iniciar a câmera. Verifique se outro app está usando a câmera no momento.");
+      });
     }
     
     function fecharCamera() { if (cameraScanner) { try { cameraScanner.stop().catch(e=>console.log(e)); } catch(e){} cameraScanner = null; } }
