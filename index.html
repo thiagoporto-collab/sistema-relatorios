@@ -2,13 +2,11 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <!-- Impede que 2 toques deem zoom na tela pelo celular, necessário para o modo tela cheia funcionar liso -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Sistema de Relatórios</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     :root {
-      /* CORREÇÃO APLICADA AQUI: Remoção do "var()" na declaração das variáveis */
       --primary: #0f172a; 
       --secondary: #334155; 
       --bg: #f8fafc;
@@ -31,7 +29,7 @@
       font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
       background: var(--bg); color: var(--text);
       margin: 0; padding: 0;
-      user-select: none; /* Previne seleção de texto nos toques duplos */
+      user-select: none;
     }
 
     .header {
@@ -85,7 +83,7 @@
     #reader { width: 100%; border: 2px dashed var(--gray); border-radius: 8px; overflow: hidden;}
     .toast { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; font-size: 0.9rem;}
 
-    input[type="text"], input[type="date"], select {
+    input[type="text"], input[type="date"], input[type="number"], select {
       width: 100%; padding: 12px; margin: 8px 0 16px 0; 
       border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box;
       font-family: inherit; font-size: 1rem; background: #fff;
@@ -102,6 +100,15 @@
     .cell-yellow { background-color: var(--yellow-light); color: #925c02; font-weight: bold; cursor: pointer;}
     .cell-red { background-color: var(--red-light); color: #991b1b; font-weight: bold; cursor: pointer;}
     .cell-green { background-color: var(--green-light); color: #065f46; font-weight: bold; cursor: pointer;}
+
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 3px solid rgba(0,0,0,0.1); border-radius: 50%;
+      border-top-color: var(--red);
+      animation: spin 1s ease-in-out infinite;
+      vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -110,8 +117,10 @@
   <div id="screen-home" class="screen active-screen">
     <div class="header">Sistema de Relatórios</div>
     <div class="container">
+      
+      <!-- USUÁRIO LOGADO -->
       <div id="user-info" style="display:none; text-align:center; margin-bottom:20px; padding:15px; background:var(--green-light); color:#065f46; border-radius:8px; font-weight:600;">
-        Usuário Logado <br>
+        <span id="lbl-user-name">Usuário Logado</span> <br>
         <button onclick="fazerLogout()" style="margin-top:10px; background:white; border:1px solid #065f46; color:#065f46; padding:5px 15px; border-radius:4px; cursor:pointer;">Trocar Usuário</button>
       </div>
 
@@ -133,7 +142,11 @@
     </div>
     <div class="container">
       <p style="text-align: center; color: var(--secondary); font-weight: 600;" id="camera-instructions"></p>
+      
       <div id="reader"></div>
+      
+      <!-- BOTÃO INSERIR MANUALMENTE -->
+      <button class="btn" style="background: var(--secondary); color: white; justify-content: center; margin-top: 20px;" onclick="abrirModalManual()">⌨️ Digitar Código Manualmente</button>
     </div>
   </div>
 
@@ -184,6 +197,20 @@
   </div>
 
   <!-- === MODAIS === -->
+  
+  <!-- MODAL: CÓDIGO MANUAL -->
+  <div id="modal-manual" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-manual')">×</span>
+      <h3 style="margin-top:0;">Inserir Código Manualmente</h3>
+      <input type="number" id="input-manual-code" placeholder="Digite o código de barras numérico">
+      <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
+        <button class="btn btn-action" style="background: var(--green);" onclick="confirmarCodigoManual()">OK</button>
+        <button class="btn btn-action" style="background: var(--gray);" onclick="fecharModal('modal-manual')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-add-periodo" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-add-periodo')">×</span>
@@ -211,7 +238,10 @@
       <input type="hidden" id="edit-data-id">
       
       <label>Data Inicial:</label><input type="date" id="data-nova-inicio">
-      <label>Data Final (Opcional):</label><input type="date" id="data-nova-fim">
+      
+      <div id="bloco-data-fim">
+        <label>Data Final (Opcional):</label><input type="date" id="data-nova-fim">
+      </div>
       
       <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
       <label>Selecione quem TEVE relatório:</label>
@@ -285,23 +315,49 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
+    // MAPEAMENTO INSTANTÂNEO DOS ADMINISTRADORES
+    const ADMINS = {
+      "48192598990489": "Thiago",
+      "48192598325690": "Léo",
+      "48192592604184": "Lua",
+      "48192598962509": "Rafa",
+      "48192598141037": "Danny",
+      "48192598918259": "Rodrigo"
+    };
+
     let db = JSON.parse(localStorage.getItem('relatoriosDB')) || { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [], nomes: [] };
     let loggedUserBarcode = localStorage.getItem('loggedUserBarcode') || null;
     let cameraScanner = null;
+    let currentScanCallback = null; // Armazena a função callback da câmera para ser usada no modal manual
     let context = { periodoId: null, turno: null, dataId: null, gestorId: null, acaoPendente: null };
     let historyStack = [];
     let currentScreen = 'screen-home';
 
     window.onload = function() {
-      if(loggedUserBarcode) document.getElementById('user-info').style.display = 'block';
+      atualizarUIUsuario();
       sendInBackground('sincronizar', {});
     };
+
+    function getNomeLogado(codigo) {
+      if (!codigo) return "Desconhecido";
+      return ADMINS[codigo] || "Código: " + codigo;
+    }
+
+    function atualizarUIUsuario() {
+      let uiElement = document.getElementById('user-info');
+      if (loggedUserBarcode) {
+        uiElement.style.display = 'block';
+        document.getElementById('lbl-user-name').innerText = "Usuário Logado: " + getNomeLogado(loggedUserBarcode);
+      } else {
+        uiElement.style.display = 'none';
+      }
+    }
 
     // --- LÓGICA DE TELA CHEIA: 2 Toques Entra, 3 Toques Sai ---
     let clickCount = 0;
     let clickTimer = null;
     document.addEventListener('click', function(e) {
-      if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; // Evita disparar ao digitar
+      if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; 
       
       clickCount++;
       if (clickCount === 1) {
@@ -323,11 +379,30 @@
 
     function generateID() { return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5); }
     function saveDBLocal() { localStorage.setItem('relatoriosDB', JSON.stringify(db)); }
+    
     function formatISOtoBR(isoDate) {
       if(!isoDate) return '';
       let parts = String(isoDate).split('T')[0].split('-');
       if(parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
       return isoDate;
+    }
+
+    // FORMATAÇÃO DE DATA E HORA
+    function formatDateTimeBR(val) {
+      if (!val) return '';
+      let str = String(val);
+      if (str.includes('/')) return str.replace(',', ' -').replace(/:\d{2}$/, ''); 
+      
+      let d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        let day = String(d.getDate()).padStart(2, '0');
+        let mo = String(d.getMonth() + 1).padStart(2, '0');
+        let yr = d.getFullYear();
+        let hr = String(d.getHours()).padStart(2, '0');
+        let min = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${mo}/${yr} - ${hr}:${min}`;
+      }
+      return str;
     }
 
     // Navegação
@@ -385,34 +460,64 @@
     }
 
     function iniciarLogin(modulo) {
-      if(loggedUserBarcode) { renderPeriodos(); navegar('screen-periodos'); }
+      if(loggedUserBarcode) { 
+        renderPeriodos(); navegar('screen-periodos'); 
+      }
       else {
         abrirCamera("Escaneie seu crachá para logar.", (codigo) => {
-          loggedUserBarcode = codigo; localStorage.setItem('loggedUserBarcode', codigo);
-          document.getElementById('user-info').style.display = 'block';
+          loggedUserBarcode = codigo; 
+          localStorage.setItem('loggedUserBarcode', codigo);
+          atualizarUIUsuario();
           renderPeriodos(); navegar('screen-periodos');
         });
       }
     }
+
     function fazerLogout() {
-      loggedUserBarcode = null; localStorage.removeItem('loggedUserBarcode');
-      document.getElementById('user-info').style.display = 'none'; alert("Usuário desconectado.");
+      loggedUserBarcode = null; 
+      localStorage.removeItem('loggedUserBarcode');
+      atualizarUIUsuario();
+      alert("Usuário desconectado.");
     }
 
+    // --- CÂMERA E INSERÇÃO MANUAL ---
     function abrirCamera(msg, callback) {
       navegar('screen-camera');
       document.getElementById('camera-instructions').innerText = msg;
+      currentScanCallback = callback; // Guardamos a função de callback
+      
       cameraScanner = new Html5Qrcode("reader");
       cameraScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
           fecharCamera(); voltarTela();
-          if (callback) callback(decodedText);
+          if (currentScanCallback) currentScanCallback(decodedText);
         }, (err) => {}
-      ).catch(err => alert("Câmera bloqueada."));
+      ).catch(err => alert("Câmera bloqueada. Permita o acesso."));
     }
-    function fecharCamera() { if (cameraScanner) { cameraScanner.stop().catch(e=>console.log(e)); cameraScanner = null; } }
 
-    // --- PERÍODOS (O MAIS NOVO NO TOPO) ---
+    function fecharCamera() { 
+      if (cameraScanner) { cameraScanner.stop().catch(e=>console.log(e)); cameraScanner = null; } 
+    }
+
+    function abrirModalManual() {
+      document.getElementById('input-manual-code').value = '';
+      abrirModal('modal-manual');
+    }
+
+    function confirmarCodigoManual() {
+      let code = document.getElementById('input-manual-code').value.trim();
+      if (!code) return alert("Por favor, digite um código de barras válido.");
+      
+      fecharModal('modal-manual');
+      fecharCamera();
+      voltarTela(); // Volta pra tela de onde a câmera/modal foi chamado
+      
+      if (currentScanCallback) {
+        currentScanCallback(code);
+      }
+    }
+
+    // --- PERÍODOS ---
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos');
       div.innerHTML = '';
@@ -475,7 +580,7 @@
       fecharModal('modal-selecionar-turno'); renderDatas(); navegar('screen-datas');
     }
 
-    // --- DATAS (DATA MAIS RECENTE NO TOPO) ---
+    // --- DATAS ---
     function renderDatas() {
       let div = document.getElementById('lista-datas');
       div.innerHTML = '';
@@ -535,7 +640,9 @@
         let d = db.datas.find(x => x.ID === idData);
         document.getElementById('edit-data-id').value = d.ID;
         document.getElementById('data-nova-inicio').value = String(d.DataISO).substring(0,10);
-        document.getElementById('data-nova-fim').parentElement.style.display = 'none';
+        
+        document.getElementById('bloco-data-fim').style.display = 'none';
+        document.getElementById('lbl-modal-data-titulo').innerText = "Editar Gestores da Data";
         
         let statusList = db.statusDiario.filter(s => s.ID_Data === idData);
         statusList.forEach(s => {
@@ -546,7 +653,9 @@
         document.getElementById('edit-data-id').value = '';
         document.getElementById('data-nova-inicio').value = '';
         document.getElementById('data-nova-fim').value = '';
-        document.getElementById('data-nova-fim').parentElement.style.display = 'block';
+        
+        document.getElementById('bloco-data-fim').style.display = 'block';
+        document.getElementById('lbl-modal-data-titulo').innerText = "Inserir Data do Relatório";
       }
       abrirModal('modal-add-data');
     }
@@ -663,32 +772,37 @@
 
     function consultarHistorico() {
       let toast = document.getElementById('consultar-toast');
-      toast.innerText = "Consultando...";
+      toast.innerHTML = '<div class="spinner"></div> Carregando...';
       
       sendInBackground('verificarHistorico', { idData: context.dataId, idGestor: context.gestorId }, (historicoRetornado) => {
         fecharModal('modal-acoes'); abrirModal('modal-historico');
         let historico = historicoRetornado || db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
+        
         if(!historico || historico.length === 0) {
           document.getElementById('conteudo-historico').innerHTML = "<p style='text-align:center;'>Nenhuma ação registrada.</p>"; return;
         }
         
-        let html = '<table class="matrix-table" style="width:100%;"><thead><tr><th>Ação</th><th>Admin</th><th>Pessoa Lida (Crachá)</th><th>Data/Hora</th></tr></thead><tbody>';
+        let html = '<table class="matrix-table" style="width:100%;"><thead><tr><th>Ação</th><th>Pessoa que Recebeu/Devolveu</th><th>Data e Hora</th><th>Admin</th></tr></thead><tbody>';
+        
         historico.forEach(h => {
           let aStr = h.acao || h.Acao;
           let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
+          let dataFormatada = formatDateTimeBR(h.dataHora || h.DataHora);
+          
           html += `<tr>
             <td style="color:${cor}; font-weight:bold;">${aStr}</td>
-            <td>${h.admin || h.ResponsavelLogin}</td>
             <td>${h.alvo || h.CodigoLido}</td>
-            <td>${h.dataHora || h.DataHora}</td>
+            <td>${dataFormatada}</td>
+            <td>${h.admin || h.ResponsavelLogin}</td>
           </tr>`;
         });
+        
         html += '</tbody></table>';
         document.getElementById('conteudo-historico').innerHTML = html;
       });
     }
 
-    // --- MATRIZ DE CONTROLE (ORDEM ALFABÉTICA GESTORES) ---
+    // --- MATRIZ DE CONTROLE ---
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select');
       sel.innerHTML = '';
