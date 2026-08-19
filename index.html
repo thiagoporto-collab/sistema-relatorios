@@ -184,7 +184,7 @@
       <label>Data Inicial:</label><input type="date" id="data-nova-inicio">
       <div id="bloco-data-fim"><label>Data Final (Opcional):</label><input type="date" id="data-nova-fim"></div>
       <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
-      <label>Selecione quem TEVE relatório (Turno Atual):</label>
+      <label>Selecione quem TEVE relatório:</label>
       <div id="list-check-gestores" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-top: 8px; background:var(--bg);"></div>
       <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
         <button class="btn btn-action" style="background: var(--green);" onclick="salvarDataDiaria()">Salvar</button>
@@ -272,7 +272,6 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
-    // Mapeamento dos Admins
     const ADMINS = {
       "48192598990489": "Thiago",
       "48192598325690": "Léo",
@@ -314,7 +313,7 @@
       } else { uiElement.style.display = 'none'; }
     }
 
-    // --- TELA CHEIA GARANTIDA EM QUALQUER CLIQUE ---
+    // TELA CHEIA IMEDIATA EM QUALQUER CLIQUE
     document.addEventListener('click', function(e) {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignorado"));
@@ -446,7 +445,6 @@
       if (currentScanCallback) currentScanCallback(code);
     }
 
-    // Períodos
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos'); div.innerHTML = '';
       if(!db.periodos || db.periodos.length === 0) { div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhum período criado.</p>'; return; }
@@ -465,7 +463,6 @@
     function editarPeriodo(id) { let per = db.periodos.find(p => p.ID === id); if (!per) return; document.getElementById('edit-periodo-id').value = per.ID; document.getElementById('per-inicio').value = String(per.DataInicial).substring(0,10); document.getElementById('per-fim').value = String(per.DataFinal).substring(0,10); abrirModal('modal-add-periodo'); }
     function excluirPeriodo(id) { if(confirm("Excluir?")) { db.periodos = db.periodos.filter(p => p.ID !== id); saveDBLocal(); renderPeriodos(); sendInBackground('excluirPeriodo', { id: id }); } }
     
-    // Config do Turno Geral
     function preSelecionarPeriodo(id) { context.periodoId = id; abrirModal('modal-selecionar-turno'); }
     function entrarPeriodo(turno) { 
       context.turno = turno; 
@@ -475,11 +472,8 @@
       renderDatas(); navegar('screen-datas'); 
     }
 
-    // Datas por TURNO
     function renderDatas() {
       let div = document.getElementById('lista-datas'); div.innerHTML = '';
-      
-      // FILTRA AS DATAS QUE PERTENCEM SOMENTE AO TURNO ATUAL
       let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId && d.Turno === context.turno).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
       
       if(datasFiltradas.length === 0) div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhuma data criada para este turno.</p>';
@@ -498,8 +492,6 @@
     
     function prepararModalData(isEdit, idData = null) {
       let divCheck = document.getElementById('list-check-gestores'); divCheck.innerHTML = '';
-      
-      // FILTRA APENAS OS GESTORES DO TURNO ATUAL NA HORA DE CRIAR A DATA
       let gestoresTurno = db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome));
       
       if(gestoresTurno.length === 0){
@@ -567,16 +559,18 @@
 
     function executarAcao(acao, codigoLido) {
       let dataHora = new Date().toLocaleString("pt-BR");
-      
+      let nomeAdminParaSalvar = loggedUserBarcode; // O Backend resolve o nome depois, deixamos o código aqui
+
       db.registros.push({ 
         ID_Data: context.dataId, 
         ID_Gestor: context.gestorId, 
         Acao: acao, 
         CodigoLido: codigoLido, 
-        ResponsavelLogin: loggedUserBarcode, 
+        AdminLogado: nomeAdminParaSalvar, 
         DataHora: dataHora 
       });
       saveDBLocal(); entrarData(context.dataId);
+      
       let gestorObj = db.gestores.find(g => g.ID === context.gestorId);
       sendInBackground('registrarAcao', { 
         idData: context.dataId, idGestor: context.gestorId, turno: context.turno, 
@@ -594,14 +588,14 @@
       historico.forEach(h => {
         let aStr = h.acao || h.Acao; let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
         let nomeAlvo = getNomeLocal(h.alvo || h.CodigoLido); 
-        let nomeAdmin = getNomeLocal(h.admin || h.ResponsavelLogin); 
+        let nomeAdmin = getNomeLocal(h.AdminLogado || h.admin || h.ResponsavelLogin); 
         let dh = formatDateTimeBR(h.dataHora || h.DataHora);
         html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomeAlvo}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
       });
       html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
     }
 
-    // --- MATRIZ E RESUMO (SEPARADOS POR TURNO) ---
+    // --- MATRIZ E RESUMO ---
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select'); sel.innerHTML = '';
       db.periodos.slice().reverse().forEach(p => { sel.innerHTML += `<option value="${p.ID}">${formatISOtoBR(p.DataInicial)} a ${formatISOtoBR(p.DataFinal)}</option>`; });
@@ -614,8 +608,14 @@
       let ent = historico.find(h => h.Acao === 'Entregar'); let dev = historico.find(h => h.Acao === 'Devolver');
 
       let html = `<p><strong>Gestor:</strong> ${gestor.Nome}</p><p><strong>Data:</strong> ${formatISOtoBR(d.DataISO) || d.DataString}</p><hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">`;
-      if (ent) { html += `<div style="background: var(--red-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;"><strong style="color: #991b1b;">🔴 ENTREGUE:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(ent.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(ent.ResponsavelLogin)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(ent.DataHora)}</div>`; }
-      if (dev) { html += `<div style="background: var(--green-light); padding: 10px; border-radius: 8px;"><strong style="color: #065f46;">🟢 DEVOLVIDO:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(dev.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(dev.ResponsavelLogin)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(dev.DataHora)}</div>`; }
+      if (ent) { 
+        let adminEnt = ent.AdminLogado || ent.ResponsavelLogin;
+        html += `<div style="background: var(--red-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;"><strong style="color: #991b1b;">🔴 ENTREGUE:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(ent.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(adminEnt)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(ent.DataHora)}</div>`; 
+      }
+      if (dev) { 
+        let adminDev = dev.AdminLogado || dev.ResponsavelLogin;
+        html += `<div style="background: var(--green-light); padding: 10px; border-radius: 8px;"><strong style="color: #065f46;">🟢 DEVOLVIDO:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(dev.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(adminDev)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(dev.DataHora)}</div>`; 
+      }
       document.getElementById('conteudo-resumo').innerHTML = html; abrirModal('modal-resumo');
     }
 
@@ -649,7 +649,7 @@
       tbody += '</tbody>'; tb.innerHTML = thead + tbody;
     }
 
-    // --- CONFIGURAÇÃO DE GESTORES (AGORA POR TURNO) ---
+    // Config Gestores
     function abrirGestoresConfig() { 
       let div = document.getElementById('lista-config-gestores'); div.innerHTML = ''; 
       db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { 
@@ -661,7 +661,7 @@
     function salvarNovoGestor() { 
       let editId = document.getElementById('edit-gestor-id').value; 
       let nome = document.getElementById('nome-gestor').value; 
-      let turnoSel = document.getElementById('turno-gestor').value; // Pega o turno do form
+      let turnoSel = document.getElementById('turno-gestor').value;
       if(!nome) return; 
       let finalId = editId || generateID(); 
       if (editId) { 
