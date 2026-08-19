@@ -413,8 +413,6 @@
       
       cameraScanner = new Html5Qrcode("reader");
       
-      // Mantivemos o formato retangular para facilitar a leitura de crachás, 
-      // mas removemos a restrição de foco que causava o bloqueio.
       let configCamera = { 
         fps: 15, 
         qrbox: { width: 280, height: 120 }, 
@@ -425,16 +423,26 @@
         { facingMode: "environment" }, 
         configCamera,
         (decodedText) => { 
+          // Limpa espaços em branco por segurança
+          let codigoLimpo = decodedText.trim();
+          
+          // TRAVA DE SEGURANÇA CONTRA O BUG DA CÂMERA:
+          // Se o leitor "engasgar" e ler um código gigante repetido (maior que 15) 
+          // ou muito pequeno, ele ignora esse frame e continua a leitura até acertar.
+          if (codigoLimpo.length > 16 || codigoLimpo.length < 4) {
+             console.log("Leitura ignorada (erro de foco): " + codigoLimpo);
+             return; 
+          }
+
           fecharCamera(); 
           voltarTela(); 
-          if (currentScanCallback) currentScanCallback(decodedText); 
+          if (currentScanCallback) currentScanCallback(codigoLimpo); 
         }, 
         (err) => {
-          // Erros de frame são normais enquanto o código não é detectado, apenas ignoramos.
+          // Erros de frame são normais enquanto o código não é detectado
         }
       ).catch(err => {
-        console.error(err);
-        alert("Não foi possível iniciar a câmera. Verifique se outro app está usando a câmera no momento.");
+        alert("Não foi possível iniciar a câmera. Verifique as permissões do navegador.");
       });
     }
     
