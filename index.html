@@ -119,7 +119,7 @@
   <!-- TELA 3: DATAS -->
   <div id="screen-datas" class="screen">
     <div class="header">
-      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Datas (Turno <span id="lbl-turno"></span>)
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Datas (<span id="lbl-turno"></span>)
       <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
     </div>
     <div class="container">
@@ -184,7 +184,7 @@
       <label>Data Inicial:</label><input type="date" id="data-nova-inicio">
       <div id="bloco-data-fim"><label>Data Final (Opcional):</label><input type="date" id="data-nova-fim"></div>
       <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
-      <label>Selecione quem TEVE relatório:</label>
+      <label>Selecione quem TEVE relatório (Turno Atual):</label>
       <div id="list-check-gestores" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-top: 8px; background:var(--bg);"></div>
       <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
         <button class="btn btn-action" style="background: var(--green);" onclick="salvarDataDiaria()">Salvar</button>
@@ -248,7 +248,8 @@
       <span class="close-modal" onclick="fecharModal('modal-gestores-config')">×</span>
       <div class="btn-group-row" style="align-items: center;">
         <h3 style="margin: 0; flex-grow:1;">Gestores (A-Z)</h3>
-        <button class="btn-primary" style="padding: 5px 15px; width:auto; border-radius: 5px; font-size: 1.2rem;" onclick="abrirModal('modal-add-gestor')">+</button>
+        <!-- AQUI CHAMAMOS A NOVA FUNÇÃO QUE LIMPA O MODAL -->
+        <button class="btn-primary" style="padding: 5px 15px; width:auto; border-radius: 5px; font-size: 1.2rem;" onclick="prepararModalNovoGestor()">+</button>
       </div>
       <div id="lista-config-gestores"></div>
     </div>
@@ -313,7 +314,7 @@
       } else { uiElement.style.display = 'none'; }
     }
 
-    // TELA CHEIA IMEDIATA EM QUALQUER CLIQUE
+    // TELA CHEIA IMEDIATA
     document.addEventListener('click', function(e) {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignorado"));
@@ -397,7 +398,6 @@
     }
     function fazerLogout() { loggedUserBarcode = null; atualizarUIUsuario(); alert("Desconectado."); }
 
-    // --- CÂMERA COM DUPLA CHECAGEM ---
     let lastScannedCode = "";
     let scanMatchCount = 0;
 
@@ -559,7 +559,7 @@
 
     function executarAcao(acao, codigoLido) {
       let dataHora = new Date().toLocaleString("pt-BR");
-      let nomeAdminParaSalvar = loggedUserBarcode; // O Backend resolve o nome depois, deixamos o código aqui
+      let nomeAdminParaSalvar = loggedUserBarcode; 
 
       db.registros.push({ 
         ID_Data: context.dataId, 
@@ -595,7 +595,6 @@
       html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
     }
 
-    // --- MATRIZ E RESUMO ---
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select'); sel.innerHTML = '';
       db.periodos.slice().reverse().forEach(p => { sel.innerHTML += `<option value="${p.ID}">${formatISOtoBR(p.DataInicial)} a ${formatISOtoBR(p.DataFinal)}</option>`; });
@@ -649,7 +648,7 @@
       tbody += '</tbody>'; tb.innerHTML = thead + tbody;
     }
 
-    // Config Gestores
+    // --- NOVA LÓGICA DE GESTORES (LIMPEZA E ANTI-DUPLICIDADE) ---
     function abrirGestoresConfig() { 
       let div = document.getElementById('lista-config-gestores'); div.innerHTML = ''; 
       db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { 
@@ -657,19 +656,58 @@
       }); 
       abrirModal('modal-gestores-config'); 
     }
+
+    // NOVA FUNÇÃO: Limpa o modal de Gestor antes de abrir
+    function prepararModalNovoGestor() {
+      document.getElementById('edit-gestor-id').value = '';
+      document.getElementById('nome-gestor').value = '';
+      document.getElementById('turno-gestor').value = context.turno || 'A';
+      document.getElementById('lbl-modal-gestor-titulo').innerText = "Novo Gestor";
+      abrirModal('modal-add-gestor');
+    }
     
+    // NOVA FUNÇÃO: Salva Gestor com Verificação de Duplicidade (Impede no mesmo turno e Adiciona (A)/(B) em turnos diferentes)
     function salvarNovoGestor() { 
       let editId = document.getElementById('edit-gestor-id').value; 
-      let nome = document.getElementById('nome-gestor').value; 
+      let nomeRaw = document.getElementById('nome-gestor').value.trim(); 
       let turnoSel = document.getElementById('turno-gestor').value;
-      if(!nome) return; 
+      if(!nomeRaw) return; 
+
+      // Remove sufixos (A) ou (B) se o usuário digitou sem querer, para comparar o nome base
+      let baseName = nomeRaw.replace(/\s*\([AB]\)$/i, '').trim();
+
+      // Checa se o nome existe no MESMO turno
+      let conflitoMesmoTurno = db.gestores.find(g => g.ID !== editId && g.Turno === turnoSel && g.Nome.replace(/\s*\([AB]\)$/i, '').trim().toLowerCase() === baseName.toLowerCase());
+      if (conflitoMesmoTurno) {
+          alert("Já existe um gestor com esse nome no Turno " + turnoSel + "!");
+          return;
+      }
+
+      // Checa se o nome existe no OUTRO turno
+      let conflitoOutroTurno = db.gestores.find(g => g.ID !== editId && g.Turno !== turnoSel && g.Nome.replace(/\s*\([AB]\)$/i, '').trim().toLowerCase() === baseName.toLowerCase());
+
+      let nomeFinal = nomeRaw;
+      if (conflitoOutroTurno) {
+          // Acrescenta o sufixo no novo gestor
+          nomeFinal = baseName + " (" + turnoSel + ")";
+          
+          // Verifica se o gestor antigo já tem o sufixo, se não tiver, adiciona.
+          if (!conflitoOutroTurno.Nome.endsWith("(" + conflitoOutroTurno.Turno + ")")) {
+              conflitoOutroTurno.Nome = baseName + " (" + conflitoOutroTurno.Turno + ")";
+              sendInBackground('salvarGestor', { id: conflitoOutroTurno.ID, nome: conflitoOutroTurno.Nome, turno: conflitoOutroTurno.Turno });
+          }
+      }
+
       let finalId = editId || generateID(); 
       if (editId) { 
-        let g = db.gestores.find(x => x.ID === editId); if (g) { g.Nome = nome; g.Turno = turnoSel; } 
+        let g = db.gestores.find(x => x.ID === editId); 
+        if (g) { g.Nome = nomeFinal; g.Turno = turnoSel; } 
       } else {
-        db.gestores.push({ ID: finalId, Nome: nome, Turno: turnoSel }); 
+        db.gestores.push({ ID: finalId, Nome: nomeFinal, Turno: turnoSel }); 
       }
-      saveDBLocal(); abrirGestoresConfig(); fecharModal('modal-add-gestor'); sendInBackground('salvarGestor', { id: finalId, nome: nome, turno: turnoSel }); 
+      
+      saveDBLocal(); abrirGestoresConfig(); fecharModal('modal-add-gestor'); 
+      sendInBackground('salvarGestor', { id: finalId, nome: nomeFinal, turno: turnoSel }); 
     }
     
     function editarGestor(id) { 
@@ -677,6 +715,7 @@
       document.getElementById('edit-gestor-id').value = g.ID; 
       document.getElementById('nome-gestor').value = g.Nome; 
       document.getElementById('turno-gestor').value = g.Turno || 'A';
+      document.getElementById('lbl-modal-gestor-titulo').innerText = "Editar Gestor";
       abrirModal('modal-add-gestor'); 
     }
     
