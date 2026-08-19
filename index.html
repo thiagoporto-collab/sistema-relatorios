@@ -185,7 +185,6 @@
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-acoes')">×</span>
       <h3 style="text-align: center; margin-top:0;" id="lbl-acao-gestor">Ações</h3>
-      <!-- Agora a consulta é instantânea, sem delay -->
       <button class="btn" style="background: var(--card-bg); color: var(--text); justify-content: center; border-color: var(--border);" onclick="consultarHistoricoLocal()">🔎 Consultar Histórico</button>
       
       <div class="btn-group-row" style="margin-bottom: 0;">
@@ -203,7 +202,6 @@
     </div>
   </div>
 
-  <!-- MODAL RESUMO (Abre ao clicar no OK da Matriz) -->
   <div id="modal-resumo" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-resumo')">×</span>
@@ -271,7 +269,7 @@
       sendInBackground('sincronizar', {});
     };
 
-    // Resolução de Nomes Local
+    // Resolução de Nomes Local -> Retorna SOMENTE NOME ou CÓDIGO (se não achar)
     function getNomeLocal(codigo) {
       if (!codigo) return '';
       if (ADMINS[codigo]) return ADMINS[codigo];
@@ -287,7 +285,7 @@
       let uiElement = document.getElementById('user-info');
       if (loggedUserBarcode) {
         uiElement.style.display = 'block';
-        document.getElementById('lbl-user-name').innerText = "Usuário: " + getNomeLocal(loggedUserBarcode);
+        document.getElementById('lbl-user-name').innerText = "Admin: " + getNomeLocal(loggedUserBarcode);
       } else { uiElement.style.display = 'none'; }
     }
 
@@ -312,14 +310,12 @@
 
     function generateID() { return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5); }
     function saveDBLocal() { localStorage.setItem('relatoriosDB', JSON.stringify(db)); }
-    
     function formatISOtoBR(isoDate) {
       if(!isoDate) return '';
       let parts = String(isoDate).split('T')[0].split('-');
       if(parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
       return isoDate;
     }
-    
     function formatDateTimeBR(val) {
       if (!val) return '';
       let str = String(val);
@@ -342,22 +338,18 @@
     function abrirModal(id) { document.getElementById(id).style.display = 'block'; }
     function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
 
-    // Chamada API (Anti-Travamento de rede com TIMEOUT)
+    // Chamada API
     function sendInBackground(action, payload, cb = null) {
       if (!navigator.onLine) return;
       const callbackName = 'jsonp_cb_' + Date.now() + '_' + Math.round(100000 * Math.random());
       const script = document.createElement('script');
       
       let timeoutId = setTimeout(() => {
-        if (window[callbackName]) {
-           delete window[callbackName];
-           if (script.parentNode) script.parentNode.removeChild(script);
-        }
-      }, 15000); // Cancela o carregamento se a internet congelar por 15 segundos
+        if (window[callbackName]) { delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); }
+      }, 15000); 
 
       window[callbackName] = function(response) {
-        clearTimeout(timeoutId);
-        delete window[callbackName]; 
+        clearTimeout(timeoutId); delete window[callbackName]; 
         if (script.parentNode) script.parentNode.removeChild(script);
         if (response && response.status === 'success') {
           if (action === 'sincronizar' && response.data) { db = response.data; saveDBLocal(); renderTelaAtual(); }
@@ -366,10 +358,7 @@
       };
       const params = new URLSearchParams({ action: action, payload: JSON.stringify(payload || {}), callback: callbackName });
       script.src = `${API_URL}?${params.toString()}`; 
-      script.onerror = function() { 
-        clearTimeout(timeoutId); delete window[callbackName]; 
-        if (script.parentNode) script.parentNode.removeChild(script); 
-      };
+      script.onerror = function() { clearTimeout(timeoutId); delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); };
       document.body.appendChild(script);
     }
 
@@ -379,7 +368,7 @@
       else if (currentScreen === 'screen-relatorios') entrarData(context.dataId);
     }
 
-    // Câmera & Manual
+    // Login e Câmera
     function iniciarLogin(modulo) {
       if(loggedUserBarcode) { renderPeriodos(); navegar('screen-periodos'); }
       else {
@@ -392,9 +381,7 @@
     function fazerLogout() { loggedUserBarcode = null; localStorage.removeItem('loggedUserBarcode'); atualizarUIUsuario(); alert("Desconectado."); }
 
     function abrirCamera(msg, callback) {
-      navegar('screen-camera');
-      document.getElementById('camera-instructions').innerText = msg;
-      currentScanCallback = callback;
+      navegar('screen-camera'); document.getElementById('camera-instructions').innerText = msg; currentScanCallback = callback;
       cameraScanner = new Html5Qrcode("reader");
       cameraScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => { fecharCamera(); voltarTela(); if (currentScanCallback) currentScanCallback(decodedText); }, (err) => {}
@@ -415,8 +402,7 @@
       let div = document.getElementById('lista-periodos'); div.innerHTML = '';
       if(!db.periodos || db.periodos.length === 0) { div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhum período criado.</p>'; return; }
       db.periodos.slice().reverse().forEach(p => {
-        let iStr = formatISOtoBR(p.DataInicial); let fStr = formatISOtoBR(p.DataFinal);
-        let formatado = (iStr && fStr) ? `${iStr} a ${fStr}` : (iStr || 'Indefinido');
+        let iStr = formatISOtoBR(p.DataInicial); let fStr = formatISOtoBR(p.DataFinal); let formatado = (iStr && fStr) ? `${iStr} a ${fStr}` : (iStr || 'Indefinido');
         div.innerHTML += `<div class="btn" style="cursor:default; padding: 12px 16px;"><span style="flex-grow:1; cursor:pointer;" onclick="preSelecionarPeriodo('${p.ID}')">📅 ${formatado}</span><button class="icon-btn" onclick="editarPeriodo('${p.ID}')">✏️</button><button class="icon-btn" style="color:var(--red);" onclick="excluirPeriodo('${p.ID}')">❌</button></div>`;
       });
     }
@@ -477,7 +463,6 @@
       let pct = Math.round((dev / tot) * 100); document.getElementById('progress-bar').style.width = pct + '%'; document.getElementById('progress-text').innerText = `${pct}% Devolvido (${dev}/${tot})`;
     }
 
-    // Ações Gestor
     function entrarData(idData) {
       fecharModal('modal-controle'); context.dataId = idData;
       let div = document.getElementById('lista-gestores-data'); div.innerHTML = '';
@@ -493,7 +478,6 @@
     }
     function abrirAcoesGestor(idGestor, nomeGestor) { context.gestorId = idGestor; document.getElementById('lbl-acao-gestor').innerText = nomeGestor; abrirModal('modal-acoes'); }
 
-    // --- BLOQUEIO DE DUPLICIDADE FRONTEND ---
     function dispararAcao(acao) {
       let jaExiste = db.registros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && r.Acao === acao);
       if (jaExiste) { alert(`Opa! Este gestor já consta como ${acao.toUpperCase()} no sistema nesta data.`); return; }
@@ -511,69 +495,44 @@
       sendInBackground('registrarAcao', { idData: context.dataId, idGestor: context.gestorId, turno: context.turno, acao: acao, codigoLido: codigoLido, responsavel: loggedUserBarcode, dataHora: dataHora, gestorNome: (gestorObj ? gestorObj.Nome : 'Desconhecido') });
     }
 
-    // --- CONSULTA HISTÓRICO INSTANTÂNEO ---
+    // --- CONSULTA HISTÓRICO COM NOMENCLATURA AJUSTADA ---
     function consultarHistoricoLocal() {
-      fecharModal('modal-acoes');
-      abrirModal('modal-historico');
-      
+      fecharModal('modal-acoes'); abrirModal('modal-historico');
       let historico = db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
+      if(!historico || historico.length === 0) { document.getElementById('conteudo-historico').innerHTML = "<p style='text-align:center;'>Nenhuma ação registrada.</p>"; return; }
       
-      if(!historico || historico.length === 0) {
-        document.getElementById('conteudo-historico').innerHTML = "<p style='text-align:center;'>Nenhuma ação registrada.</p>"; 
-        return;
-      }
-      
-      // COLUNAS INVERTIDAS E SIMPLIFICADAS COMO PEDIDO
-      let html = '<table class="matrix-table" style="width:100%;"><thead><tr><th>Ação</th><th>Alvo/Crachá</th><th>Data/Hora</th><th>Admin</th></tr></thead><tbody>';
+      // Cabeçalhos renomeados conforme solicitado
+      let html = '<table class="matrix-table" style="width:100%;"><thead><tr><th>Ação</th><th>Pessoa</th><th>Data/Hora</th><th>Admin</th></tr></thead><tbody>';
       
       historico.forEach(h => {
-        let aStr = h.acao || h.Acao;
-        let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
-        let nomeAlvo = getNomeLocal(h.alvo || h.CodigoLido);
-        let nomeAdmin = getNomeLocal(h.admin || h.ResponsavelLogin);
+        let aStr = h.acao || h.Acao; let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
+        
+        // Puxa o nome da pessoa lida ou exibe o código puro
+        let nomePessoa = getNomeLocal(h.alvo || h.CodigoLido); 
+        // Puxa o nome do admin ou exibe o código puro
+        let nomeAdmin = getNomeLocal(h.admin || h.ResponsavelLogin); 
         let dh = formatDateTimeBR(h.dataHora || h.DataHora);
-        html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomeAlvo}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
+        
+        html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomePessoa}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
       });
-      html += '</tbody></table>';
-      document.getElementById('conteudo-historico').innerHTML = html;
+      html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
     }
 
-    // --- MATRIZ E RESUMO ---
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select'); sel.innerHTML = '';
       db.periodos.slice().reverse().forEach(p => { sel.innerHTML += `<option value="${p.ID}">${formatISOtoBR(p.DataInicial)} a ${formatISOtoBR(p.DataFinal)}</option>`; });
       renderizarMatrizControle(); abrirModal('modal-controle');
     }
 
-    // Função que monta o mini-resumo da matriz
     function mostrarResumoGestor(idData, idGestor) {
-      let gestor = db.gestores.find(g => g.ID === idGestor);
-      let d = db.datas.find(x => x.ID === idData);
+      let gestor = db.gestores.find(g => g.ID === idGestor); let d = db.datas.find(x => x.ID === idData);
       let historico = db.registros.filter(r => r.ID_Data === idData && r.ID_Gestor === idGestor);
-      let ent = historico.find(h => h.Acao === 'Entregar');
-      let dev = historico.find(h => h.Acao === 'Devolver');
+      let ent = historico.find(h => h.Acao === 'Entregar'); let dev = historico.find(h => h.Acao === 'Devolver');
 
       let html = `<p><strong>Gestor:</strong> ${gestor.Nome}</p><p><strong>Data:</strong> ${formatISOtoBR(d.DataISO) || d.DataString}</p><hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">`;
-      
-      if (ent) {
-        html += `<div style="background: var(--red-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
-          <strong style="color: #991b1b;">🔴 ENTREGUE:</strong><br>
-          <span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(ent.ResponsavelLogin)}<br>
-          <span style="color:var(--text-light); font-size:0.85rem;">Recebedor:</span> ${getNomeLocal(ent.CodigoLido)}<br>
-          <span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(ent.DataHora)}
-        </div>`;
-      }
-      
-      if (dev) {
-        html += `<div style="background: var(--green-light); padding: 10px; border-radius: 8px;">
-          <strong style="color: #065f46;">🟢 DEVOLVIDO:</strong><br>
-          <span style="color:var(--text-light); font-size:0.85rem;">Devolvedor:</span> ${getNomeLocal(dev.CodigoLido)}<br>
-          <span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(dev.ResponsavelLogin)}<br>
-          <span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(dev.DataHora)}
-        </div>`;
-      }
-      document.getElementById('conteudo-resumo').innerHTML = html;
-      abrirModal('modal-resumo');
+      if (ent) { html += `<div style="background: var(--red-light); padding: 10px; border-radius: 8px; margin-bottom: 10px;"><strong style="color: #991b1b;">🔴 ENTREGUE:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(ent.ResponsavelLogin)}<br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(ent.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(ent.DataHora)}</div>`; }
+      if (dev) { html += `<div style="background: var(--green-light); padding: 10px; border-radius: 8px;"><strong style="color: #065f46;">🟢 DEVOLVIDO:</strong><br><span style="color:var(--text-light); font-size:0.85rem;">Pessoa:</span> ${getNomeLocal(dev.CodigoLido)}<br><span style="color:var(--text-light); font-size:0.85rem;">Admin:</span> ${getNomeLocal(dev.ResponsavelLogin)}<br><span style="color:var(--text-light); font-size:0.85rem;">Quando:</span> ${formatDateTimeBR(dev.DataHora)}</div>`; }
+      document.getElementById('conteudo-resumo').innerHTML = html; abrirModal('modal-resumo');
     }
 
     function renderizarMatrizControle() {
@@ -581,10 +540,7 @@
       let datasPer = db.datas.filter(d => d.ID_Periodo === perId).sort((a,b) => String(a.DataISO).localeCompare(String(b.DataISO)));
       if(datasPer.length === 0) { tb.innerHTML = '<tr><td>Nenhuma data.</td></tr>'; return; }
       
-      let thead = '<thead><tr><th>Gestor</th>';
-      datasPer.forEach(d => { let dF = formatISOtoBR(d.DataISO) || d.DataString; thead += `<th>${dF.substring(0, 5)}</th>`; });
-      thead += '</tr></thead>';
-      
+      let thead = '<thead><tr><th>Gestor</th>'; datasPer.forEach(d => { let dF = formatISOtoBR(d.DataISO) || d.DataString; thead += `<th>${dF.substring(0, 5)}</th>`; }); thead += '</tr></thead>';
       let tbody = '<tbody>';
       db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(gestor => {
         tbody += `<tr><td>${gestor.Nome}</td>`;
@@ -594,9 +550,7 @@
           let classe = 'cell-none'; let texto = '-'; let acaoClick = '';
           if(teve) {
             let hist = db.registros.filter(r => r.ID_Data === d.ID && r.ID_Gestor === gestor.ID);
-            if(hist.some(h => h.Acao === 'Devolver')) { 
-              classe = 'cell-green'; texto = 'OK'; acaoClick = `onclick="mostrarResumoGestor('${d.ID}', '${gestor.ID}')"`; 
-            }
+            if(hist.some(h => h.Acao === 'Devolver')) { classe = 'cell-green'; texto = 'OK'; acaoClick = `onclick="mostrarResumoGestor('${d.ID}', '${gestor.ID}')"`; }
             else if(hist.some(h => h.Acao === 'Entregar')) { classe = 'cell-red'; texto = 'Entregue'; acaoClick = `onclick="entrarData('${d.ID}')"`; }
             else { classe = 'cell-yellow'; texto = 'Pendente'; acaoClick = `onclick="entrarData('${d.ID}')"`; }
           }
@@ -607,19 +561,8 @@
       tbody += '</tbody>'; tb.innerHTML = thead + tbody;
     }
 
-    // Configuração Gestores
-    function abrirGestoresConfig() {
-      let div = document.getElementById('lista-config-gestores'); div.innerHTML = '';
-      db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => {
-        div.innerHTML += `<div class="btn" style="padding: 10px; cursor: default;"><span style="flex-grow:1;">${g.Nome}</span><button class="icon-btn" onclick="editarGestor('${g.ID}')">✏️</button><button class="icon-btn" onclick="excluirGestor('${g.ID}')" style="color:var(--red);">❌</button></div>`;
-      }); abrirModal('modal-gestores-config');
-    }
-    function salvarNovoGestor() {
-      let editId = document.getElementById('edit-gestor-id').value; let nome = document.getElementById('nome-gestor').value;
-      if(!nome) return; let finalId = editId || generateID();
-      if (editId) { let g = db.gestores.find(x => x.ID === editId); if (g) g.Nome = nome; } else db.gestores.push({ ID: finalId, Nome: nome });
-      saveDBLocal(); abrirGestoresConfig(); fecharModal('modal-add-gestor'); sendInBackground('salvarGestor', { id: finalId, nome: nome });
-    }
+    function abrirGestoresConfig() { let div = document.getElementById('lista-config-gestores'); div.innerHTML = ''; db.gestores.slice().sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { div.innerHTML += `<div class="btn" style="padding: 10px; cursor: default;"><span style="flex-grow:1;">${g.Nome}</span><button class="icon-btn" onclick="editarGestor('${g.ID}')">✏️</button><button class="icon-btn" onclick="excluirGestor('${g.ID}')" style="color:var(--red);">❌</button></div>`; }); abrirModal('modal-gestores-config'); }
+    function salvarNovoGestor() { let editId = document.getElementById('edit-gestor-id').value; let nome = document.getElementById('nome-gestor').value; if(!nome) return; let finalId = editId || generateID(); if (editId) { let g = db.gestores.find(x => x.ID === editId); if (g) g.Nome = nome; } else db.gestores.push({ ID: finalId, Nome: nome }); saveDBLocal(); abrirGestoresConfig(); fecharModal('modal-add-gestor'); sendInBackground('salvarGestor', { id: finalId, nome: nome }); }
     function editarGestor(id) { let g = db.gestores.find(item => item.ID === id); if(!g) return; document.getElementById('edit-gestor-id').value = g.ID; document.getElementById('nome-gestor').value = g.Nome; abrirModal('modal-add-gestor'); }
     function excluirGestor(id) { if(confirm("Deseja remover?")) { db.gestores = db.gestores.filter(g => g.ID !== id); saveDBLocal(); abrirGestoresConfig(); sendInBackground('excluirGestor', { id: id }); } }
   </script>
