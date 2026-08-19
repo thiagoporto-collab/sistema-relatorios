@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR"> 
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -41,7 +41,17 @@
     .progress-fill { background: var(--secondary); height: 100%; border-radius: 5px; transition: width 0.4s ease; }
     .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; font-weight: 600;}
 
-    #reader { width: 100%; border: 2px dashed var(--gray); border-radius: 8px; overflow: hidden;}
+    /* ÁREA DO SCANNER COM LINHA VERMELHA */
+    .scanner-container { position: relative; width: 100%; border: 2px dashed var(--gray); border-radius: 8px; overflow: hidden; }
+    #reader { width: 100%; border: none; }
+    .scan-line {
+      position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+      background: rgba(239, 68, 68, 0.8);
+      box-shadow: 0 0 15px 2px rgba(239, 68, 68, 0.8);
+      animation: scan 2.5s ease-in-out infinite; z-index: 10; display: none;
+    }
+    @keyframes scan { 0% { top: 5%; } 50% { top: 95%; } 100% { top: 5%; } }
+
     .toast { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; font-size: 0.9rem;}
 
     input[type="text"], input[type="date"], input[type="number"], select { width: 100%; padding: 12px; margin: 8px 0 16px 0; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 1rem; background: #fff; }
@@ -61,11 +71,7 @@
 
   <!-- TELA 1: HOME -->
   <div id="screen-home" class="screen active-screen">
-    <div class="header">
-      Sistema de Relatórios
-      <!-- Botão manual de tela cheia, caso precise -->
-      <button onclick="alternarTelaCheia()" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer;">🔲</button>
-    </div>
+    <div class="header">Sistema de Relatórios</div>
     <div class="container">
       <div id="user-info" style="display:none; text-align:center; margin-bottom:20px; padding:15px; background:var(--green-light); color:#065f46; border-radius:8px; font-weight:600;">
         <span id="lbl-user-name">Usuário Logado</span> <br>
@@ -75,9 +81,6 @@
       <button class="btn btn-primary" onclick="iniciarLogin('FALTAS')" style="font-size: 1.1rem; padding: 20px;">📄 RELATÓRIO DE FALTAS</button>
       <button class="btn" style="justify-content: center; opacity: 0.4; cursor: not-allowed;">CONTRATOS</button>
       <p id="network-status" class="toast"></p>
-      <p style="text-align: center; color: var(--gray); font-size: 0.8rem; margin-top: 40px;">
-        O site entra em Tela Cheia no 1º clique.<br>Para sair, dê 3 toques rápidos.
-      </p>
     </div>
   </div>
 
@@ -88,7 +91,13 @@
     </div>
     <div class="container">
       <p style="text-align: center; color: var(--secondary); font-weight: 600;" id="camera-instructions"></p>
-      <div id="reader"></div>
+      
+      <!-- Câmera com Scanner Visual -->
+      <div class="scanner-container">
+        <div class="scan-line" id="scan-line"></div>
+        <div id="reader"></div>
+      </div>
+      
       <button class="btn" style="background: var(--secondary); color: white; justify-content: center; margin-top: 20px;" onclick="abrirModalManual()">⌨️ Digitar Código Manualmente</button>
     </div>
   </div>
@@ -250,7 +259,7 @@
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
-    // Mapeamento dos Admins para leitura instantânea
+    // Mapeamento dos Admins
     const ADMINS = {
       "48192598990489": "Thiago",
       "48192598325690": "Léo",
@@ -292,41 +301,12 @@
       } else { uiElement.style.display = 'none'; }
     }
 
-    // --- TELA CHEIA FORÇADA E POR CLIQUE ---
-    
-    // 1. Força a tela cheia silenciosamente no PRIMEIRO clique em qualquer lugar do site
-    document.addEventListener('click', function initFullscreen() {
-        if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(e=>{});
-        }
-    }, { once: true });
-
-    // 2. Mantém o sistema de 3 toques para sair e botão alternativo
-    let clickCount = 0; let clickTimer = null;
+    // --- TELA CHEIA GARANTIDA EM QUALQUER CLIQUE ---
     document.addEventListener('click', function(e) {
-      if(e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; 
-      clickCount++;
-      if (clickCount === 1) { clickTimer = setTimeout(() => { clickCount = 0; }, 400); } 
-      else if (clickCount === 2) {
-        clearTimeout(clickTimer);
-        clickTimer = setTimeout(() => {
-          if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e=>{});
-          clickCount = 0;
-        }, 400);
-      } else if (clickCount === 3) {
-        clearTimeout(clickTimer);
-        if (document.fullscreenElement) document.exitFullscreen().catch(e=>{});
-        clickCount = 0;
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignorado: " + err));
       }
     });
-
-    function alternarTelaCheia() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(e=>{});
-      } else {
-        document.exitFullscreen().catch(e=>{});
-      }
-    }
 
     function generateID() { return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5); }
     function saveDBLocal() { localStorage.setItem('relatoriosDB', JSON.stringify(db)); }
@@ -405,11 +385,18 @@
     }
     function fazerLogout() { loggedUserBarcode = null; atualizarUIUsuario(); alert("Desconectado."); }
 
-    // --- CÂMERA APRIMORADA COM FOCO E RECORTE MAIS PRECISO ---
+    // --- CÂMERA COM DUPLA CHECAGEM ---
+    let lastScannedCode = "";
+    let scanMatchCount = 0;
+
     function abrirCamera(msg, callback) {
       navegar('screen-camera'); 
       document.getElementById('camera-instructions').innerText = msg; 
+      document.getElementById('scan-line').style.display = 'block';
       currentScanCallback = callback;
+      
+      lastScannedCode = "";
+      scanMatchCount = 0;
       
       cameraScanner = new Html5Qrcode("reader");
       
@@ -423,30 +410,34 @@
         { facingMode: "environment" }, 
         configCamera,
         (decodedText) => { 
-          // Limpa espaços em branco por segurança
           let codigoLimpo = decodedText.trim();
           
-          // TRAVA DE SEGURANÇA CONTRA O BUG DA CÂMERA:
-          // Se o leitor "engasgar" e ler um código gigante repetido (maior que 15) 
-          // ou muito pequeno, ele ignora esse frame e continua a leitura até acertar.
-          if (codigoLimpo.length > 16 || codigoLimpo.length < 4) {
-             console.log("Leitura ignorada (erro de foco): " + codigoLimpo);
-             return; 
+          if (codigoLimpo.length > 16 || codigoLimpo.length < 4) return;
+          
+          // TRAVA DE SEGURANÇA: Lê o mesmo código 2x seguidas
+          if (codigoLimpo !== lastScannedCode) {
+             lastScannedCode = codigoLimpo;
+             scanMatchCount = 1;
+             return;
           }
-
-          fecharCamera(); 
-          voltarTela(); 
-          if (currentScanCallback) currentScanCallback(codigoLimpo); 
+          scanMatchCount++;
+          
+          if (scanMatchCount >= 2) {
+             fecharCamera(); 
+             voltarTela(); 
+             if (currentScanCallback) currentScanCallback(codigoLimpo); 
+          }
         }, 
-        (err) => {
-          // Erros de frame são normais enquanto o código não é detectado
-        }
+        (err) => {}
       ).catch(err => {
-        alert("Não foi possível iniciar a câmera. Verifique as permissões do navegador.");
+        alert("Não foi possível iniciar a câmera.");
       });
     }
     
-    function fecharCamera() { if (cameraScanner) { try { cameraScanner.stop().catch(e=>console.log(e)); } catch(e){} cameraScanner = null; } }
+    function fecharCamera() { 
+      document.getElementById('scan-line').style.display = 'none';
+      if (cameraScanner) { try { cameraScanner.stop().catch(e=>console.log(e)); } catch(e){} cameraScanner = null; } 
+    }
 
     function abrirModalManual() { document.getElementById('input-manual-code').value = ''; abrirModal('modal-manual'); }
     function confirmarCodigoManual() {
@@ -546,22 +537,10 @@
 
     function executarAcao(acao, codigoLido) {
       let dataHora = new Date().toLocaleString("pt-BR");
-      
-      db.registros.push({ 
-        ID_Data: context.dataId, 
-        ID_Gestor: context.gestorId, 
-        Acao: acao, 
-        CodigoLido: codigoLido, 
-        ResponsavelLogin: loggedUserBarcode, 
-        DataHora: dataHora 
-      });
+      db.registros.push({ ID_Data: context.dataId, ID_Gestor: context.gestorId, Acao: acao, CodigoLido: codigoLido, ResponsavelLogin: loggedUserBarcode, DataHora: dataHora });
       saveDBLocal(); entrarData(context.dataId);
       let gestorObj = db.gestores.find(g => g.ID === context.gestorId);
-      sendInBackground('registrarAcao', { 
-        idData: context.dataId, idGestor: context.gestorId, turno: context.turno, 
-        acao: acao, codigoLido: codigoLido, responsavel: loggedUserBarcode, dataHora: dataHora, 
-        gestorNome: (gestorObj ? gestorObj.Nome : 'Desconhecido') 
-      });
+      sendInBackground('registrarAcao', { idData: context.dataId, idGestor: context.gestorId, turno: context.turno, acao: acao, codigoLido: codigoLido, responsavel: loggedUserBarcode, dataHora: dataHora, gestorNome: (gestorObj ? gestorObj.Nome : 'Desconhecido') });
     }
 
     function consultarHistoricoLocal() {
