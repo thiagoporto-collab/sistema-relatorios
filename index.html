@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Sistema de Relatórios</title>
+  <title>Sistema de Relatórios e Contratos</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     :root {
@@ -41,7 +41,7 @@
     .progress-fill { background: var(--secondary); height: 100%; border-radius: 5px; transition: width 0.4s ease; }
     .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; font-weight: 600;}
 
-    /* ÁREA DO SCANNER COM LINHA VERMELHA */
+    /* ÁREA DO SCANNER */
     .scanner-container { position: relative; width: 100%; border: 2px dashed var(--gray); border-radius: 8px; overflow: hidden; }
     #reader { width: 100%; border: none; }
     .scan-line {
@@ -164,8 +164,11 @@
   <div id="screen-contratos-colab" class="screen">
     <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Colaboradores <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
     <div class="container">
+      
+      <button class="btn btn-action" style="background: var(--red); width: 100%; margin-bottom: 20px; font-size: 1.1rem; padding: 15px;" onclick="entregarColetivoContrato()">📦 ENTREGAR COLETIVO</button>
+
       <div style="display:flex; gap:10px; margin-bottom:15px;">
-        <input type="number" id="input-mat-colab" placeholder="Matrícula (7 dígitos)" style="margin:0; flex:1;">
+        <input type="number" id="input-mat-colab" placeholder="Matrícula (Ex: 0012345)" style="margin:0; flex:1;">
         <button class="btn-primary" style="width:auto; padding:0 20px;" onclick="addColabContrato()">Adicionar</button>
       </div>
       <div id="lista-contratos-colab"></div>
@@ -318,16 +321,6 @@
     </div>
   </div>
 
-  <div id="modal-gestores-contrato" class="modal-overlay">
-    <div class="modal-content">
-      <span class="close-modal" onclick="fecharModal('modal-gestores-contrato')">×</span>
-      <h3>Selecione os Gestores</h3>
-      <div id="list-check-gestores-contrato" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); padding: 10px;"></div>
-      <button class="btn btn-action" style="background: var(--green); width:100%; margin-top:15px;" onclick="salvarGestoresContrato()">Salvar</button>
-    </div>
-  </div>
-
-  <!-- MODAL: PAINEL GERAL DE CONTRATOS -->
   <div id="modal-painel-contratos" class="modal-overlay" style="background: var(--bg);">
     <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 20px; display: flex; flex-direction: column;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -341,9 +334,11 @@
   </div>
 
   <script>
+    // ==========================================
+    // COLE AQUI A SUA URL DA NOVA IMPLANTAÇÃO
+    // ==========================================
     const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
 
-    // Mapeamento dos Admins
     const ADMINS = {
       "48192598990489": "Thiago",
       "48192598325690": "Léo",
@@ -358,7 +353,7 @@
     let loggedUserBarcode = null; 
     let cameraScanner = null;
     let currentScanCallback = null;
-    let context = { periodoId: null, turno: null, dataId: null, gestorId: null };
+    let context = { periodoId: null, turno: null, dataId: null, gestorId: null, matriculaColab: null };
     let historyStack = [];
     let currentScreen = 'screen-home';
 
@@ -367,13 +362,17 @@
       sendInBackground('sincronizar', {});
     };
 
+    // ATUALIZADO: Buscar na coluna de Matrícula ou Código de Barras e retornar o nome
     function getNomeLocal(codigo) {
       if (!codigo) return '';
       if (ADMINS[codigo]) return ADMINS[codigo];
       let limpo = String(codigo).replace(/\D/g, '');
       if (db.nomes) {
-        let pessoa = db.nomes.find(n => String(n['Código de Barras']).replace(/\D/g, '') === limpo);
-        if (pessoa && pessoa.NOME) return pessoa.NOME;
+        let pessoa = db.nomes.find(n => 
+          (n['Código de Barras'] && String(n['Código de Barras']).replace(/\D/g, '') === limpo) ||
+          (n['MATRÍCULA'] && String(n['MATRÍCULA']).replace(/\D/g, '') === limpo)
+        );
+        if (pessoa && (pessoa.NOME || pessoa.Nome)) return pessoa.NOME || pessoa.Nome;
       }
       return codigo; 
     }
@@ -386,7 +385,6 @@
       } else { uiElement.style.display = 'none'; }
     }
 
-    // TELA CHEIA IMEDIATA EM QUALQUER CLIQUE
     document.addEventListener('click', function(e) {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignorado"));
@@ -440,9 +438,8 @@
             saveDBLocal(); 
             atualizarUIUsuario(); 
             renderTelaAtual(); 
-            if (document.getElementById('modal-historico').style.display === 'block') {
-               consultarHistoricoLocal();
-            }
+            if (document.getElementById('modal-historico').style.display === 'block') consultarHistoricoLocal();
+            if (currentScreen === 'screen-contratos-colab') renderListaColabContrato();
           }
           if (cb) cb(response.data);
         }
@@ -457,6 +454,7 @@
       if (currentScreen === 'screen-periodos') renderPeriodos();
       else if (currentScreen === 'screen-datas') renderDatas();
       else if (currentScreen === 'screen-relatorios') entrarData(context.dataId);
+      else if (currentScreen === 'screen-contratos-datas') renderDatasContratos();
     }
 
     function iniciarLogin(modulo) {
@@ -475,7 +473,6 @@
     }
     function fazerLogout() { loggedUserBarcode = null; atualizarUIUsuario(); alert("Desconectado."); }
 
-    // --- CÂMERA BLINDADA: VOTAÇÃO MELHOR DE 3 ---
     let scanHistory = [];
     let isScanning = false;
 
@@ -495,34 +492,22 @@
         { facingMode: "environment" }, configCamera,
         (decodedText) => { 
           if (!isScanning) return; 
-
           let codigoLimpo = decodedText.trim();
           if (codigoLimpo.length > 16 || codigoLimpo.length < 4) return;
-          
           scanHistory.push(codigoLimpo);
+          if (scanHistory.length > 3) scanHistory.shift(); 
           
-          // Mantém apenas os últimos 3 códigos lidos
-          if (scanHistory.length > 3) {
-             scanHistory.shift(); 
-          }
-          
-          // Verifica se algum código apareceu 2 vezes entre os últimos 3 lidos (Desempate)
           let counts = {};
           let winner = null;
           for (let code of scanHistory) {
               counts[code] = (counts[code] || 0) + 1;
-              if (counts[code] >= 2) {
-                  winner = code;
-                  break;
-              }
+              if (counts[code] >= 2) { winner = code; break; }
           }
           
-          // Se tivermos um vencedor, fecha a câmera e envia
           if (winner) {
              isScanning = false;
              fecharCamera(); 
              voltarTela(); 
-             
              if (currentScanCallback) {
                  let runCb = currentScanCallback;
                  currentScanCallback = null; 
@@ -549,6 +534,7 @@
       if (currentScanCallback) currentScanCallback(code);
     }
 
+    // --- FUNCOES FALTAS ---
     function renderPeriodos() {
       let div = document.getElementById('lista-periodos'); div.innerHTML = '';
       if(!db.periodos || db.periodos.length === 0) { div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhum período criado.</p>'; return; }
@@ -579,7 +565,6 @@
     function renderDatas() {
       let div = document.getElementById('lista-datas'); div.innerHTML = '';
       let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId && d.Turno === context.turno).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
-      
       if(datasFiltradas.length === 0) div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhuma data criada para este turno.</p>';
       
       datasFiltradas.forEach(d => {
@@ -650,12 +635,14 @@
       });
       navegar('screen-relatorios');
     }
+    
     function abrirAcoesGestor(idGestor, nomeGestor) { context.gestorId = idGestor; document.getElementById('lbl-acao-gestor').innerText = nomeGestor; abrirModal('modal-acoes'); }
 
     function dispararAcao(acao) {
-      if(moduloAtual === 'CONTRATOS') return dispararAcaoContrato(acao); // Redireciona
+      if (moduloAtual === 'CONTRATOS') return dispararAcaoContrato(acao);
+      
       let jaExiste = db.registros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && r.Acao === acao);
-      // ... resto do codigo
+      if (jaExiste) { alert(`Opa! Este gestor já consta como ${acao.toUpperCase()} no sistema nesta data.`); return; }
       
       fecharModal('modal-acoes');
       let instrucao = acao === 'Entregar' ? "Escaneie o crachá de QUEM RECEBEU o relatório." : "Escaneie o crachá de QUEM DEVOLVEU o relatório.";
@@ -664,15 +651,8 @@
 
     function executarAcao(acao, codigoLido) {
       let dataHora = new Date().toLocaleString("pt-BR");
-      let nomeAdminParaSalvar = loggedUserBarcode; 
-
       db.registros.push({ 
-        ID_Data: context.dataId, 
-        ID_Gestor: context.gestorId, 
-        Acao: acao, 
-        CodigoLido: codigoLido, 
-        AdminLogado: nomeAdminParaSalvar, 
-        DataHora: dataHora 
+        ID_Data: context.dataId, ID_Gestor: context.gestorId, Acao: acao, CodigoLido: codigoLido, AdminLogado: loggedUserBarcode, DataHora: dataHora 
       });
       saveDBLocal(); entrarData(context.dataId);
       
@@ -686,13 +666,21 @@
 
     function consultarHistoricoLocal() {
       fecharModal('modal-acoes'); abrirModal('modal-historico');
-      let historico = db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
+      
+      // Checa em qual modulo estamos
+      let historico = [];
+      if(moduloAtual === 'CONTRATOS') {
+          historico = (db.contratosRegistros || []).filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(context.matriculaColab));
+      } else {
+          historico = db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
+      }
+      
       if(!historico || historico.length === 0) { document.getElementById('conteudo-historico').innerHTML = "<p style='text-align:center;'>Nenhuma ação registrada.</p>"; return; }
       
       let html = '<table class="matrix-table" style="width:100%;"><thead><tr><th>Ação</th><th>Pessoa</th><th>Data/Hora</th><th>Admin</th></tr></thead><tbody>';
       historico.forEach(h => {
         let aStr = h.acao || h.Acao; let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
-        let nomeAlvo = getNomeLocal(h.alvo || h.CodigoLido); 
+        let nomeAlvo = getNomeLocal(h.alvo || h.CodigoLido || h.Matricula); 
         let nomeAdmin = getNomeLocal(h.AdminLogado || h.admin || h.ResponsavelLogin); 
         let dh = formatDateTimeBR(h.dataHora || h.DataHora);
         html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomeAlvo}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
@@ -776,15 +764,10 @@
       if(!nomeRaw) return; 
 
       let baseName = nomeRaw.replace(/\s*\([AB]\)$/i, '').trim();
-
       let conflitoMesmoTurno = db.gestores.find(g => g.ID !== editId && g.Turno === turnoSel && g.Nome.replace(/\s*\([AB]\)$/i, '').trim().toLowerCase() === baseName.toLowerCase());
-      if (conflitoMesmoTurno) {
-          alert("Já existe um gestor com esse nome no Turno " + turnoSel + "!");
-          return;
-      }
+      if (conflitoMesmoTurno) return alert("Já existe um gestor com esse nome no Turno " + turnoSel + "!");
 
       let conflitoOutroTurno = db.gestores.find(g => g.ID !== editId && g.Turno !== turnoSel && g.Nome.replace(/\s*\([AB]\)$/i, '').trim().toLowerCase() === baseName.toLowerCase());
-
       let nomeFinal = nomeRaw;
       if (conflitoOutroTurno) {
           nomeFinal = baseName + " (" + turnoSel + ")";
@@ -882,13 +865,14 @@
       navegar('screen-contratos-colab');
     }
 
+    // ATUALIZADO: Renderização do nome (carregando) e clique abrindo modal direto
     function renderListaColabContrato() {
       let div = document.getElementById('lista-contratos-colab'); div.innerHTML = '';
       let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
       
       colabs.forEach(c => {
-        let pessoa = buscarPessoa(c.Matricula);
-        let nome = pessoa.matricula !== 'N/A' ? pessoa.nome : `Mat: ${c.Matricula}`;
+        let nomeEncontrado = getNomeLocal(c.Matricula);
+        let exibicao = (nomeEncontrado === c.Matricula) ? `Mat: ${c.Matricula} (Carregando...)` : `${c.Matricula} - ${nomeEncontrado}`;
         
         // Verifica status para cor (Verde = Devolvido, Vermelho = Entregue)
         let hist = (db.contratosRegistros || []).filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
@@ -897,7 +881,7 @@
         else if(hist.some(h => h.Acao === 'Entregar')) corClasse = 'status-red';
 
         div.innerHTML += `<div class="btn ${corClasse}" style="padding:10px;">
-          <span style="flex-grow:1; cursor:pointer;" onclick="abrirAcoesContrato('${c.Matricula}', '${nome}')">${nome}</span>
+          <span style="flex-grow:1; cursor:pointer;" onclick="abrirAcoesContrato('${c.Matricula}', '${nomeEncontrado}')">${exibicao}</span>
           <button class="icon-btn" style="color:var(--red);" onclick="removerColabContrato('${c.Matricula}')">❌</button>
         </div>`;
       });
@@ -905,7 +889,7 @@
 
     function addColabContrato() {
       let mat = document.getElementById('input-mat-colab').value.trim();
-      if(mat.length < 5) return alert("Matrícula inválida.");
+      if(mat.length < 4) return alert("Matrícula inválida.");
       if(!db.contratosColab) db.contratosColab = [];
       if(db.contratosColab.some(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId && String(c.Matricula) === mat)) return alert("Colaborador já adicionado.");
       
@@ -924,29 +908,61 @@
 
     function abrirAcoesContrato(matricula, nome) {
       context.matriculaColab = matricula;
-      document.getElementById('lbl-acao-gestor').innerText = nome;
-      abrirModal('modal-acoes'); // Reaproveita o modal de ações
+      document.getElementById('lbl-acao-gestor').innerText = nome === matricula ? `Mat: ${matricula}` : nome;
+      abrirModal('modal-acoes');
     }
 
+    // ATUALIZADO: Dispara Ação Instantânea sem Câmera
     function dispararAcaoContrato(acao) {
       fecharModal('modal-acoes');
-      abrirCamera("Escaneie o crachá para confirmar " + acao, (codigo) => {
-        let dh = new Date().toLocaleString("pt-BR");
-        if(!db.contratosRegistros) db.contratosRegistros = [];
-        db.contratosRegistros.push({
-          ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: context.matriculaColab,
-          Acao: acao, CodigoLido: codigo, AdminLogado: loggedUserBarcode, DataHora: dh
-        });
-        saveDBLocal(); renderListaColabContrato();
-        sendInBackground('registrarAcaoContrato', {
-          idData: context.dataId, idGestor: context.gestorId, matricula: context.matriculaColab,
-          acao: acao, codigoLido: codigo, responsavel: loggedUserBarcode, dataHora: dh
-        });
+      let dh = new Date().toLocaleString("pt-BR");
+      
+      if(!db.contratosRegistros) db.contratosRegistros = [];
+      
+      let jaExiste = db.contratosRegistros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && r.Matricula === context.matriculaColab && r.Acao === acao);
+      if(jaExiste) return alert("Esta ação já foi registrada para esta pessoa.");
+      
+      db.contratosRegistros.push({
+        ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: context.matriculaColab,
+        Acao: acao, CodigoLido: context.matriculaColab, AdminLogado: loggedUserBarcode, DataHora: dh
+      });
+      
+      saveDBLocal(); renderListaColabContrato();
+      sendInBackground('registrarAcaoContrato', {
+        idData: context.dataId, idGestor: context.gestorId, matricula: context.matriculaColab,
+        acao: acao, codigoLido: context.matriculaColab, responsavel: loggedUserBarcode, dataHora: dh
       });
     }
 
+    // NOVO: ENTREGAR COLETIVO
+    function entregarColetivoContrato() {
+      let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
+      if(colabs.length === 0) return alert("Nenhum colaborador adicionado a este gestor!");
+      
+      let dh = new Date().toLocaleString("pt-BR");
+      let payloadRegistros = [];
+      
+      if(!db.contratosRegistros) db.contratosRegistros = [];
 
-function abrirPainelContratos() {
+      colabs.forEach(c => {
+         let historico = db.contratosRegistros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
+         if(!historico.some(h => h.Acao === 'Entregar')) {
+             let novoReg = {
+               ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: c.Matricula,
+               Acao: 'Entregar', CodigoLido: c.Matricula, AdminLogado: loggedUserBarcode, DataHora: dh
+             };
+             db.contratosRegistros.push(novoReg);
+             payloadRegistros.push({ ...novoReg, responsavel: loggedUserBarcode });
+         }
+      });
+      
+      if(payloadRegistros.length === 0) return alert("Todos já constam como ENTREGUES!");
+      
+      saveDBLocal(); renderListaColabContrato();
+      sendInBackground('registrarAcaoContratoColetivo', { registros: payloadRegistros });
+    }
+
+    function abrirPainelContratos() {
       renderizarMatrizContratos();
       abrirModal('modal-painel-contratos');
     }
@@ -969,8 +985,6 @@ function abrirPainelContratos() {
       thead += '</tr></thead>';
       
       let tbody = '<tbody>';
-      
-      // Filtra apenas os gestores que possuem contratos vinculados
       let gestoresVistos = new Set();
       (db.contratosGestores || []).forEach(cg => gestoresVistos.add(cg.ID_Gestor));
       let gestoresFiltrados = db.gestores.filter(g => gestoresVistos.has(g.ID)).sort((a,b) => a.Nome.localeCompare(b.Nome));
@@ -989,8 +1003,6 @@ function abrirPainelContratos() {
           } else {
             let colabs = (db.contratosColab || []).filter(c => c.ID_Data === d.ID && c.ID_Gestor === gestor.ID);
             let total = colabs.length;
-            
-            // Ação unificada: Fecha o modal do painel e abre direto a lista de colaboradores para dar baixa
             let acaoClick = `onclick="fecharModal('modal-painel-contratos'); entrarColabContrato('${d.ID}', '${gestor.ID}')"`;
             
             if(total === 0) {
@@ -1003,9 +1015,9 @@ function abrirPainelContratos() {
                     else if(hist.some(h => h.Acao === 'Entregar')) ent++;
                 });
                 
-                let classe = 'cell-yellow'; // Amarelo: Pendente (incompleto)
-                if (dev === total) classe = 'cell-green'; // Verde: Todos devolvidos
-                else if (ent > 0 && dev === 0) classe = 'cell-red'; // Vermelho: Entregou alguns mas nenhum voltou
+                let classe = 'cell-yellow';
+                if (dev === total) classe = 'cell-green'; 
+                else if (ent > 0 && dev === 0) classe = 'cell-red'; 
                 
                 tbody += `<td class="${classe}" ${acaoClick}>${dev}/${total} OK</td>`;
             }
@@ -1017,9 +1029,6 @@ function abrirPainelContratos() {
       tbody += '</tbody>';
       tb.innerHTML = thead + tbody;
     }
-    
   </script>
-
-  
 </body>
 </html>
