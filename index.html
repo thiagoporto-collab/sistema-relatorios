@@ -1,345 +1,1007 @@
-// ==========================================
-// BACKEND: Google Apps Script (API JSONP)
-// ==========================================
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sistema de Relatórios e Contratos</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    :root {
+      --primary: #0f172a; --secondary: #334155; --bg: #f8fafc;
+      --text: #1e293b; --text-light: #64748b;
+      --green: #10b981; --green-light: #d1fae5;
+      --yellow: #f59e0b; --yellow-light: #fef3c7;
+      --red: #ef4444; --red-light: #fee2e2;
+      --gray: #94a3b8; --gray-light: #f1f5f9;
+      --card-bg: #ffffff; --border: #e2e8f0;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
 
-function setupSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const abas = [
-    'nomes', 'Periodos', 'Gestores', 'Datas', 'StatusDiario', 'Registros', 'Relatorios', 
-    'Contratos_ListaGestores', 'Contratos_Datas', 'Contratos_Gestores', 'Contratos_Colaboradores', 'Contratos_Registros'
-  ];
+    body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; user-select: none; }
+    .header { background: var(--primary); color: white; padding: 18px 50px; text-align: center; font-weight: 600; font-size: 1.1rem; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+    .btn-icon { position: absolute; top: 50%; transform: translateY(-50%); background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; transition: 0.2s; }
+    .btn-back { left: 15px; } .btn-home { right: 15px; }
+    .container { padding: 20px; max-width: 800px; margin: 0 auto; }
+    .screen { display: none; } .active-screen { display: block; animation: fadeIn 0.15s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    .btn { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 16px; margin-bottom: 12px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; font-weight: 600; color: var(--secondary); box-shadow: 0 1px 2px rgba(0,0,0,0.05); cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: var(--secondary); color: white; justify-content: center; border: none; }
+    .btn-action { justify-content: center; width: 48%; color: white; border: none; }
+    .btn-group-row { display: flex; gap: 10px; margin-bottom: 20px; align-items: stretch; }
+    .icon-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 5px; opacity: 0.7;}
+
+    .status-green { border-left: 6px solid var(--green); } .status-yellow { border-left: 6px solid var(--yellow); } .status-red { border-left: 6px solid var(--red); } .status-gray { border-left: 6px solid var(--gray); opacity: 0.8; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); z-index: 1000; backdrop-filter: blur(2px); }
+    .modal-content { background: var(--card-bg); width: 90%; max-width: 500px; margin: 10% auto; padding: 25px; border-radius: 12px; position: relative; max-height: 80vh; overflow-y: auto; }
+    .close-modal { position: absolute; right: 18px; top: 18px; font-size: 1.8rem; cursor: pointer; color: var(--gray); line-height: 1;}
+    
+    .progress-bg { background: var(--gray-light); height: 10px; border-radius: 5px; margin-bottom: 8px; overflow: hidden; }
+    .progress-fill { background: var(--secondary); height: 100%; border-radius: 5px; transition: width 0.4s ease; }
+    .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; font-weight: 600;}
+
+    /* ÁREA DO SCANNER */
+    .scanner-container { position: relative; width: 100%; border: 2px dashed var(--gray); border-radius: 8px; overflow: hidden; }
+    #reader { width: 100%; border: none; }
+    .scan-line {
+      position: absolute; top: 0; left: 0; width: 100%; height: 3px;
+      background: rgba(239, 68, 68, 0.8);
+      box-shadow: 0 0 15px 2px rgba(239, 68, 68, 0.8);
+      animation: scan 2.5s ease-in-out infinite; z-index: 10; display: none;
+    }
+    @keyframes scan { 0% { top: 5%; } 50% { top: 95%; } 100% { top: 5%; } }
+
+    .toast { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; font-size: 0.9rem;}
+
+    input[type="text"], input[type="date"], input[type="number"], select { width: 100%; padding: 12px; margin: 8px 0 16px 0; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 1rem; background: #fff; }
+    label { font-weight: 600; font-size: 0.9rem; color: var(--text-light); }
+
+    .matrix-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; font-size: 0.85rem; }
+    .matrix-table th, .matrix-table td { padding: 10px; border: 1px solid var(--border); text-align: center; }
+    .matrix-table th { background: var(--gray-light); font-weight: 600; position: sticky; top: 0;}
+    .matrix-table td:first-child { text-align: left; font-weight: 600; background: #fff; position: sticky; left: 0;}
+    .cell-none { background-color: var(--gray-light); color: var(--gray); }
+    .cell-yellow { background-color: var(--yellow-light); color: #925c02; font-weight: bold; cursor: pointer;}
+    .cell-red { background-color: var(--red-light); color: #991b1b; font-weight: bold; cursor: pointer;}
+    .cell-green { background-color: var(--green-light); color: #065f46; font-weight: bold; cursor: pointer;}
+  </style>
+</head>
+<body>
+
+  <!-- TELA 1: HOME -->
+  <div id="screen-home" class="screen active-screen">
+    <div class="header">Sistema de Relatórios</div>
+    <div class="container">
+      <div id="user-info" style="display:none; text-align:center; margin-bottom:20px; padding:15px; background:var(--green-light); color:#065f46; border-radius:8px; font-weight:600;">
+        <span id="lbl-user-name">Usuário Logado</span> <br>
+        <button onclick="fazerLogout()" style="margin-top:10px; background:white; border:1px solid #065f46; color:#065f46; padding:5px 15px; border-radius:4px; cursor:pointer;">Trocar Usuário</button>
+      </div>
+
+      <button class="btn btn-primary" onclick="iniciarLogin('FALTAS')" style="font-size: 1.1rem; padding: 20px;">📄 RELATÓRIO DE FALTAS</button>
+      <button class="btn btn-primary" onclick="iniciarLogin('CONTRATOS')" style="font-size: 1.1rem; padding: 20px; background: var(--yellow); color: #000;">📄 CONTRATOS</button>
+      <p id="network-status" class="toast"></p>
+    </div>
+  </div>
+
+  <!-- TELA: CÂMERA -->
+  <div id="screen-camera" class="screen">
+    <div class="header">
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Escanear Crachá
+    </div>
+    <div class="container">
+      <p style="text-align: center; color: var(--secondary); font-weight: 600;" id="camera-instructions"></p>
+      
+      <div class="scanner-container">
+        <div class="scan-line" id="scan-line"></div>
+        <div id="reader"></div>
+      </div>
+      
+      <button class="btn" style="background: var(--secondary); color: white; justify-content: center; margin-top: 20px;" onclick="abrirModalManual()">⌨️ Digitar Código Manualmente</button>
+    </div>
+  </div>
+
+  <!-- TELA 2: PERÍODOS -->
+  <div id="screen-periodos" class="screen">
+    <div class="header">
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Períodos
+      <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
+    </div>
+    <div class="container">
+      <div class="btn-group-row">
+        <button class="btn-primary" style="width: 20%; font-size: 1.8rem; border-radius: 8px;" onclick="abrirModal('modal-add-periodo')">+</button>
+        <button class="btn-primary" style="width: 75%; background: var(--secondary);" onclick="abrirControle()">📊 MATRIZ DE CONTROLE</button>
+      </div>
+      <div id="lista-periodos"></div>
+    </div>
+  </div>
+
+  <!-- TELA 3: DATAS -->
+  <div id="screen-datas" class="screen">
+    <div class="header">
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Datas (Turno <span id="lbl-turno"></span>)
+      <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
+    </div>
+    <div class="container">
+      <div class="btn-group-row">
+        <button class="btn-primary" style="width: 20%; font-size: 1.8rem; border-radius: 8px;" onclick="prepararModalData(false)">+</button>
+        <button class="btn-primary" style="width: 75%; background: var(--secondary);" onclick="abrirGestoresConfig()">👥 GESTORES</button>
+      </div>
+      <div class="progress-bg"><div class="progress-fill" id="progress-bar" style="width: 0%;"></div></div>
+      <p class="progress-text" id="progress-text">Progresso: 0%</p>
+      <div id="lista-datas"></div>
+    </div>
+  </div>
+
+  <!-- TELA 4: GESTORES DA DATA -->
+  <div id="screen-relatorios" class="screen">
+    <div class="header">
+      <button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Gestores (Turno <span id="lbl-turno-gestores"></span>)
+      <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button>
+    </div>
+    <div class="container" id="lista-gestores-data"></div>
+  </div>
+
+  <!-- TELA C1: DATAS CONTRATOS -->
+  <div id="screen-contratos-datas" class="screen">
+    <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Datas de Contratos <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
+    <div class="container">
+      <div class="btn-group-row">
+        <button class="btn-primary" style="flex: 1; font-size: 1.8rem; border-radius: 8px;" onclick="prepararModalDataContrato()">+</button>
+        <button class="btn-primary" style="flex: 3; background: var(--secondary);" onclick="abrirPainelContratos()">📊 PAINEL GERAL</button>
+        <button class="btn-primary" style="flex: 3; background: var(--secondary);" onclick="abrirGestoresContratoConfig()">👥 GESTORES</button>
+      </div>
+      <div id="lista-contratos-datas"></div>
+    </div>
+  </div>
+
+  <!-- TELA C2: GESTORES DA DATA (CONTRATO) -->
+  <div id="screen-contratos-gestores" class="screen">
+    <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Gestores (Contratos) <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
+    <div class="container" id="lista-contratos-gestores"></div>
+  </div>
+
+  <!-- TELA C3: COLABORADORES DO GESTOR (CONTRATO) -->
+  <div id="screen-contratos-colab" class="screen">
+    <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Colaboradores <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
+    <div class="container">
+      <button class="btn btn-action" style="background: var(--red); width: 100%; margin-bottom: 20px; font-size: 1.1rem; padding: 15px;" onclick="entregarColetivoContrato()">📦 ENTREGAR COLETIVO</button>
+      <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <input type="number" id="input-mat-colab" placeholder="Matrícula (Ex: 0012345)" style="margin:0; flex:1;">
+        <button class="btn-primary" style="width:auto; padding:0 20px;" onclick="addColabContrato()">Adicionar</button>
+      </div>
+      <div id="lista-contratos-colab"></div>
+    </div>
+  </div>
+
+  <!-- === MODAIS === -->
   
-  abas.forEach(aba => {
-    let sheet = getSheetSafe(aba);
-    if (sheet.getLastRow() === 0) {
-      if(aba === 'nomes') sheet.appendRow(['MATRÍCULA', 'NOME', 'Código de Barras']);
-      if(aba === 'Periodos') sheet.appendRow(['ID', 'DataInicial', 'DataFinal']);
-      if(aba === 'Gestores') sheet.appendRow(['ID', 'Nome', 'Turno']);
-      if(aba === 'Datas') sheet.appendRow(['ID', 'ID_Periodo', 'DataString', 'DataISO', 'Turno']);
-      if(aba === 'StatusDiario') sheet.appendRow(['ID_Data', 'ID_Gestor', 'TeveRelatorio']);
-      if(aba === 'Registros') sheet.appendRow(['ID_Data', 'ID_Gestor', 'Acao', 'CodigoLido', 'AdminLogado', 'DataHora']);
-      if(aba === 'Relatorios') sheet.appendRow([
-        'PeriodoID', 'Data', 'Turno', 'Gestor', 'Status', 
-        'AdminEntregou', 'ParaQuemEntregou', 'DataEntrega', 
-        'QuemDevolveu', 'AdminRecebeuDevolucao', 'DataDevolucao'
-      ]);
-      if(aba === 'Contratos_ListaGestores') sheet.appendRow(['ID', 'Nome']);
-      if(aba === 'Contratos_Datas') sheet.appendRow(['ID', 'DataString', 'DataISO']);
-      if(aba === 'Contratos_Gestores') sheet.appendRow(['ID_Data', 'ID_Gestor']);
-      if(aba === 'Contratos_Colaboradores') sheet.appendRow(['ID_Data', 'ID_Gestor', 'Matricula']);
-      if(aba === 'Contratos_Registros') sheet.appendRow(['ID_Data', 'ID_Gestor', 'Matricula', 'Acao', 'CodigoLido', 'AdminLogado', 'DataHora']);
+  <div id="modal-manual" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-manual')">×</span>
+      <h3 style="margin-top:0;">Inserir Código</h3>
+      <input type="number" id="input-manual-code" placeholder="Digite o código de barras">
+      <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
+        <button class="btn btn-action" style="background: var(--green);" onclick="confirmarCodigoManual()">OK</button>
+        <button class="btn btn-action" style="background: var(--gray);" onclick="fecharModal('modal-manual')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-add-periodo" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-periodo')">×</span>
+      <h3 id="lbl-modal-periodo-titulo">Novo Período</h3>
+      <input type="hidden" id="edit-periodo-id">
+      <label>Data Inicial:</label><input type="date" id="per-inicio">
+      <label>Data Final:</label><input type="date" id="per-fim">
+      <button class="btn-primary btn" style="margin-top: 10px;" onclick="salvarPeriodo()">Salvar Período</button>
+    </div>
+  </div>
+
+  <div id="modal-selecionar-turno" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-selecionar-turno')">×</span>
+      <h3 style="text-align: center; margin-top:0;">Selecione o Turno</h3>
+      <button class="btn-primary btn" onclick="entrarPeriodo('A')">Turno A</button>
+      <button class="btn-primary btn" style="background: var(--primary);" onclick="entrarPeriodo('B')">Turno B</button>
+    </div>
+  </div>
+
+  <div id="modal-add-data" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-data')">×</span>
+      <h3 id="lbl-modal-data-titulo">Inserir Data</h3>
+      <input type="hidden" id="edit-data-id">
+      <label>Data Inicial:</label><input type="date" id="data-nova-inicio">
+      <div id="bloco-data-fim"><label>Data Final (Opcional):</label><input type="date" id="data-nova-fim"></div>
+      <hr style="border: 0; border-top: 1px solid var(--border); margin: 15px 0;">
+      <label>Selecione quem TEVE relatório (Turno Atual):</label>
+      <div id="list-check-gestores" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; margin-top: 8px; background:var(--bg);"></div>
+      <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
+        <button class="btn btn-action" style="background: var(--green);" onclick="salvarDataDiaria()">Salvar</button>
+        <button class="btn btn-action" style="background: var(--gray);" onclick="fecharModal('modal-add-data')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-acoes" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-acoes')">×</span>
+      <h3 style="text-align: center; margin-top:0;" id="lbl-acao-gestor">Ações</h3>
+      <button class="btn" style="background: var(--card-bg); color: var(--text); justify-content: center; border-color: var(--border);" onclick="consultarHistoricoLocal()">🔎 Consultar Histórico</button>
+      <div class="btn-group-row" style="margin-bottom: 0;">
+        <button class="btn btn-action" style="background: var(--red);" onclick="dispararAcao('Entregar')">ENTREGAR</button>
+        <button class="btn btn-action" style="background: var(--green);" onclick="dispararAcao('Devolver')">DEVOLVER</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-historico" class="modal-overlay">
+    <div class="modal-content" style="max-width: 600px;">
+      <span class="close-modal" onclick="fecharModal('modal-historico')">×</span>
+      <h3 style="margin-top:0;">Histórico de Ações</h3>
+      <div id="conteudo-historico"></div>
+    </div>
+  </div>
+
+  <div id="modal-resumo" class="modal-overlay" style="z-index: 1100;">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-resumo')">×</span>
+      <h3 style="margin-top:0; color: var(--primary);">Resumo</h3>
+      <div id="conteudo-resumo" style="font-size: 0.95rem; line-height: 1.5;"></div>
+    </div>
+  </div>
+
+  <!-- Gestores Config (Relatórios de Faltas) -->
+  <div id="modal-gestores-config" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-gestores-config')">×</span>
+      <div class="btn-group-row" style="align-items: center;">
+        <h3 style="margin: 0; flex-grow:1;">Gestores Faltas (A-Z)</h3>
+        <button class="btn-primary" style="padding: 5px 15px; width:auto; border-radius: 5px; font-size: 1.2rem;" onclick="prepararModalNovoGestor()">+</button>
+      </div>
+      <div id="lista-config-gestores"></div>
+    </div>
+  </div>
+
+  <div id="modal-add-gestor" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-gestor')">×</span>
+      <h3 id="lbl-modal-gestor-titulo" style="margin-top:0;">Novo Gestor (Faltas)</h3>
+      <input type="hidden" id="edit-gestor-id">
+      <input type="text" id="nome-gestor" placeholder="Nome Completo">
+      <label style="display:block; margin-top:10px;">Turno:</label>
+      <select id="turno-gestor">
+        <option value="A">Turno A</option>
+        <option value="B">Turno B</option>
+      </select>
+      <button class="btn-primary btn" onclick="salvarNovoGestor()">Salvar Gestor</button>
+    </div>
+  </div>
+
+  <!-- Gestores Config (Contratos) -->
+  <div id="modal-gestores-contrato-config" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-gestores-contrato-config')">×</span>
+      <div class="btn-group-row" style="align-items: center;">
+        <h3 style="margin: 0; flex-grow:1;">Gestores Contratos</h3>
+        <button class="btn-primary" style="padding: 5px 15px; width:auto; border-radius: 5px; font-size: 1.2rem;" onclick="prepararModalNovoGestorContrato()">+</button>
+      </div>
+      <div id="lista-config-gestores-contrato"></div>
+    </div>
+  </div>
+
+  <div id="modal-add-gestor-contrato" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-gestor-contrato')">×</span>
+      <h3 id="lbl-modal-gestor-contrato-titulo" style="margin-top:0;">Novo Gestor (Contratos)</h3>
+      <input type="hidden" id="edit-gestor-contrato-id">
+      <input type="text" id="nome-gestor-contrato" placeholder="Nome do Gestor">
+      <button class="btn-primary btn" onclick="salvarNovoGestorContrato()">Salvar Gestor</button>
+    </div>
+  </div>
+
+  <div id="modal-add-data-contrato" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-add-data-contrato')">×</span>
+      <h3>Nova Data (Fim Contrato)</h3>
+      <input type="hidden" id="edit-data-contrato-id">
+      <input type="date" id="data-contrato-nova">
+      <button class="btn-primary btn" onclick="salvarDataContrato()">Salvar Data</button>
+    </div>
+  </div>
+
+  <div id="modal-gestores-contrato" class="modal-overlay">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-gestores-contrato')">×</span>
+      <h3>Selecione os Gestores</h3>
+      <div id="list-check-gestores-contrato" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); padding: 10px;"></div>
+      <button class="btn btn-action" style="background: var(--green); width:100%; margin-top:15px;" onclick="salvarGestoresContrato()">Salvar</button>
+    </div>
+  </div>
+
+  <div id="modal-painel-contratos" class="modal-overlay" style="background: var(--bg);">
+    <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 20px; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: var(--primary);">Painel Geral de Contratos</h3>
+        <button class="btn-primary" style="padding: 8px 15px; width: auto; background: var(--gray);" onclick="fecharModal('modal-painel-contratos')">✖ Fechar</button>
+      </div>
+      <div style="overflow: auto; flex-grow: 1; border: 1px solid var(--border); border-radius: 8px; background: #fff;">
+        <table class="matrix-table" id="tb-matriz-contratos"></table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // COLE AQUI A SUA URL DA NOVA IMPLANTAÇÃO
+    // ==========================================
+    const API_URL = "https://script.google.com/macros/s/AKfycbxdd7UUh9DHw1XHWIx61zrpRrWoUHQCnV3YnAh38yEDoaXZOZLg2eIrNIt80ZxmGvcX/exec";
+
+    const ADMINS = {
+      "48192598990489": "Thiago",
+      "48192598325690": "Léo",
+      "48192592604184": "Lua",
+      "48192598962509": "Rafa",
+      "48192598141037": "Danny",
+      "48192598918259": "Rodrigo"
+    };
+
+    let db = JSON.parse(localStorage.getItem('relatoriosDB')) || { periodos: [], gestores: [], datas: [], statusDiario: [], registros: [], nomes: [], contratosListaGestores: [], contratosDatas: [], contratosGestores: [], contratosColab: [], contratosRegistros: [] };
+    let moduloAtual = '';
+    let loggedUserBarcode = null; 
+    let cameraScanner = null;
+    let currentScanCallback = null;
+    let context = { periodoId: null, turno: null, dataId: null, gestorId: null, matriculaColab: null };
+    let historyStack = [];
+    let currentScreen = 'screen-home';
+
+    window.onload = function() {
+      atualizarUIUsuario();
+      sendInBackground('sincronizar', {});
+    };
+
+    function getNomeLocal(codigo) {
+      if (!codigo) return '';
+      if (ADMINS[codigo]) return ADMINS[codigo];
+      let limpo = String(codigo).replace(/\D/g, '');
+      if (db.nomes) {
+        let pessoa = db.nomes.find(n => 
+          (n['Código de Barras'] && String(n['Código de Barras']).replace(/\D/g, '') === limpo) ||
+          (n['MATRÍCULA'] && String(n['MATRÍCULA']).replace(/\D/g, '') === limpo)
+        );
+        if (pessoa && (pessoa.NOME || pessoa.Nome)) return pessoa.NOME || pessoa.Nome;
+      }
+      return codigo; 
     }
-  });
-}
 
-function doGet(e) {
-  try {
-    var callback = e.parameter.callback || 'callback';
-    var action = e.parameter.action;
-    var payload = e.parameter.payload ? JSON.parse(e.parameter.payload) : {};
-    var responseData = null;
-
-    if (action === 'sincronizar') {
-      responseData = syncData();
-    } else if (action === 'registrarAcao') {
-      responseData = registrarAcao(payload);
-    } else if (action === 'salvarPeriodo') {
-      responseData = salvarPeriodoLogica(payload);
-    } else if (action === 'excluirPeriodo') {
-      responseData = deletarLinha('Periodos', payload.id);
-    } else if (action === 'salvarGestor') {
-      responseData = salvarGestorLogica(payload); 
-    } else if (action === 'excluirGestor') {
-      responseData = deletarLinha('Gestores', payload.id);
-    } else if (action === 'salvarStatusDiario') {
-      responseData = salvarStatusDiarioLogica(payload);
-    } else if (action === 'salvarGestorContrato') {
-      responseData = salvarGestorContratoLogica(payload);
-    } else if (action === 'excluirGestorContrato') {
-      responseData = deletarLinha('Contratos_ListaGestores', payload.id);
-    } else if (action === 'salvarDataContrato') {
-      responseData = salvarDataContratoLog(payload);
-    } else if (action === 'salvarGestoresContrato') {
-      responseData = salvarGestoresContratoLog(payload);
-    } else if (action === 'addColabContrato') {
-      responseData = salvarData('Contratos_Colaboradores', [payload.idData, payload.idGestor, payload.matricula]);
-    } else if (action === 'removerColabContrato') {
-      responseData = deletarColabContrato(payload);
-    } else if (action === 'registrarAcaoContrato') {
-      let admin = buscarPessoa(payload.responsavel);
-      let nomeAdmin = admin.matricula !== 'N/A' ? admin.nome : payload.responsavel;
-      responseData = salvarData('Contratos_Registros', [payload.idData, payload.idGestor, payload.matricula, payload.acao, payload.codigoLido, nomeAdmin, payload.dataHora]);
-    } else if (action === 'registrarAcaoContratoColetivo') {
-      let sheet = getSheetSafe('Contratos_Registros');
-      payload.registros.forEach(reg => {
-          let admin = buscarPessoa(reg.responsavel);
-          let nomeAdmin = admin.matricula !== 'N/A' ? admin.nome : reg.responsavel;
-          sheet.appendRow([reg.ID_Data, reg.ID_Gestor, reg.Matricula, reg.Acao, reg.CodigoLido, nomeAdmin, reg.DataHora]);
-      });
-      responseData = { success: true };
+    function atualizarUIUsuario() {
+      let uiElement = document.getElementById('user-info');
+      if (loggedUserBarcode) {
+        uiElement.style.display = 'block';
+        document.getElementById('lbl-user-name').innerText = "Admin: " + getNomeLocal(loggedUserBarcode);
+      } else { uiElement.style.display = 'none'; }
     }
 
-    var output = callback + "(" + JSON.stringify({ status: 'success', data: responseData }) + ");";
-    return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JAVASCRIPT);
-
-  } catch (error) {
-    var callback = e.parameter ? e.parameter.callback : 'callback';
-    var output = callback + "(" + JSON.stringify({ status: 'error', message: error.toString() }) + ");";
-    return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
-}
-
-function getSheetSafe(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) sheet = ss.insertSheet(name);
-  return sheet;
-}
-
-function syncData() {
-  const getRows = (sheetName) => {
-    let sheet = getSheetSafe(sheetName);
-    let data = sheet.getDataRange().getValues();
-    if (data.length <= 1) return [];
-    let headers = data.shift();
-    return data.map(row => {
-      let obj = {};
-      headers.forEach((h, i) => {
-        let val = row[i];
-        if (val instanceof Date) {
-          if (h === 'DataISO' || h === 'DataInicial' || h === 'DataFinal') {
-             val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
-          } else {
-             val = Utilities.formatDate(val, Session.getScriptTimeZone(), "dd/MM/yyyy");
-          }
-        }
-        obj[h] = val;
-      });
-      return obj;
+    document.addEventListener('click', function(e) {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignorado"));
+      }
     });
-  };
-  return {
-    periodos: getRows('Periodos'),
-    gestores: getRows('Gestores').sort((a,b) => (a.Nome || '').localeCompare(b.Nome || '')),
-    datas: getRows('Datas'),
-    statusDiario: getRows('StatusDiario'),
-    registros: getRows('Registros'),
-    nomes: getRows('nomes'),
-    contratosListaGestores: getRows('Contratos_ListaGestores').sort((a,b) => (a.Nome || '').localeCompare(b.Nome || '')),
-    contratosDatas: getRows('Contratos_Datas'),
-    contratosGestores: getRows('Contratos_Gestores'),
-    contratosColab: getRows('Contratos_Colaboradores'),
-    contratosRegistros: getRows('Contratos_Registros')
-  };
-}
 
-function salvarPeriodoLogica(payload) {
-  let sheet = getSheetSafe('Periodos');
-  if(payload.isEdit) {
-    let data = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === payload.id) {
-        sheet.getRange(i + 1, 2).setValue(payload.inicio);
-        sheet.getRange(i + 1, 3).setValue(payload.fim);
-        return { success: true };
+    function generateID() { return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5); }
+    function saveDBLocal() { localStorage.setItem('relatoriosDB', JSON.stringify(db)); }
+    function formatISOtoBR(isoDate) {
+      if(!isoDate) return '';
+      let parts = String(isoDate).split('T')[0].split('-');
+      if(parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      return isoDate;
+    }
+    function formatDateTimeBR(val) {
+      if (!val) return '';
+      let str = String(val);
+      if (str.includes('/')) return str.replace(',', ' -').replace(/:\d{2}$/, ''); 
+      let d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        let day = String(d.getDate()).padStart(2, '0');
+        let mo = String(d.getMonth() + 1).padStart(2, '0');
+        let hr = String(d.getHours()).padStart(2, '0');
+        let min = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${mo}/${d.getFullYear()} - ${hr}:${min}`;
+      }
+      return str;
+    }
+
+    function navegar(idTela) { if (currentScreen === idTela) return; historyStack.push(currentScreen); document.getElementById(currentScreen).classList.remove('active-screen'); currentScreen = idTela; document.getElementById(currentScreen).classList.add('active-screen'); fecharCamera(); }
+    function voltarTela() { if (historyStack.length > 0) { let p = historyStack.pop(); document.getElementById(currentScreen).classList.remove('active-screen'); currentScreen = p; document.getElementById(currentScreen).classList.add('active-screen'); fecharCamera(); } else irParaHome(); }
+    function irParaHome() { historyStack = []; document.getElementById(currentScreen).classList.remove('active-screen'); currentScreen = 'screen-home'; document.getElementById(currentScreen).classList.add('active-screen'); fecharCamera(); }
+    function abrirModal(id) { document.getElementById(id).style.display = 'block'; }
+    function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function sendInBackground(action, payload, cb = null) {
+      if (!navigator.onLine) return;
+      const callbackName = 'jsonp_cb_' + Date.now() + '_' + Math.round(100000 * Math.random());
+      const script = document.createElement('script');
+      
+      let timeoutId = setTimeout(() => {
+        if (window[callbackName]) { delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); }
+      }, 15000); 
+
+      window[callbackName] = function(response) {
+        clearTimeout(timeoutId); delete window[callbackName]; 
+        if (script.parentNode) script.parentNode.removeChild(script);
+        if (response && response.status === 'success') {
+          if (action === 'sincronizar' && response.data) { 
+            db = response.data; 
+            saveDBLocal(); 
+            atualizarUIUsuario(); 
+            renderTelaAtual(); 
+            if (document.getElementById('modal-historico').style.display === 'block') consultarHistoricoLocal();
+            if (currentScreen === 'screen-contratos-colab') renderListaColabContrato();
+          }
+          if (cb) cb(response.data);
+        }
+      };
+      const params = new URLSearchParams({ action: action, payload: JSON.stringify(payload || {}), callback: callbackName });
+      script.src = `${API_URL}?${params.toString()}`; 
+      script.onerror = function() { clearTimeout(timeoutId); delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); };
+      document.body.appendChild(script);
+    }
+
+    function renderTelaAtual() {
+      if (currentScreen === 'screen-periodos') renderPeriodos();
+      else if (currentScreen === 'screen-datas') renderDatas();
+      else if (currentScreen === 'screen-relatorios') entrarData(context.dataId);
+      else if (currentScreen === 'screen-contratos-datas') renderDatasContratos();
+    }
+
+    function iniciarLogin(modulo) {
+      moduloAtual = modulo;
+      if(loggedUserBarcode) { 
+        if(modulo === 'FALTAS') { renderPeriodos(); navegar('screen-periodos'); }
+        if(modulo === 'CONTRATOS') { renderDatasContratos(); navegar('screen-contratos-datas'); }
+      } else {
+        abrirCamera("Escaneie seu crachá para logar.", (codigo) => {
+          loggedUserBarcode = codigo; 
+          atualizarUIUsuario(); 
+          if(modulo === 'FALTAS') { renderPeriodos(); navegar('screen-periodos'); }
+          if(modulo === 'CONTRATOS') { renderDatasContratos(); navegar('screen-contratos-datas'); }
+        });
       }
     }
-  }
-  sheet.appendRow([payload.id, payload.inicio, payload.fim]);
-  return { success: true };
-}
+    function fazerLogout() { loggedUserBarcode = null; atualizarUIUsuario(); alert("Desconectado."); }
 
-function salvarGestorLogica(payload) {
-  let sheet = getSheetSafe('Gestores');
-  let data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === payload.id) {
-      sheet.getRange(i + 1, 2).setValue(payload.nome); 
-      sheet.getRange(i + 1, 3).setValue(payload.turno); 
-      return { success: true };
+    // --- LEITURA TRIPLA DO SCANNER (BEST OF 3) ---
+    let scanHistory = [];
+    let isScanning = false;
+
+    function abrirCamera(msg, callback) {
+      navegar('screen-camera'); 
+      document.getElementById('camera-instructions').innerText = msg; 
+      document.getElementById('scan-line').style.display = 'block';
+      currentScanCallback = callback;
+      
+      scanHistory = []; 
+      isScanning = true;
+      
+      cameraScanner = new Html5Qrcode("reader");
+      let configCamera = { fps: 20, qrbox: { width: 280, height: 120 }, disableFlip: false };
+
+      cameraScanner.start(
+        { facingMode: "environment" }, configCamera,
+        (decodedText) => { 
+          if (!isScanning) return; 
+          let codigoLimpo = decodedText.trim();
+          if (codigoLimpo.length > 16 || codigoLimpo.length < 4) return;
+          
+          // Lógica de Leitura Dupla/Tripla de segurança (Rejeita código se for lido só 1 vez isolada)
+          scanHistory.push(codigoLimpo);
+          if (scanHistory.length > 3) scanHistory.shift(); 
+          
+          let counts = {};
+          let winner = null;
+          for (let code of scanHistory) {
+              counts[code] = (counts[code] || 0) + 1;
+              if (counts[code] >= 2) { winner = code; break; }
+          }
+          
+          if (winner) {
+             isScanning = false;
+             fecharCamera(); 
+             voltarTela(); 
+             if (currentScanCallback) {
+                 let runCb = currentScanCallback;
+                 currentScanCallback = null; 
+                 runCb(winner); 
+             }
+          }
+        }, 
+        (err) => {}
+      ).catch(err => {
+        alert("Não foi possível iniciar a câmera.");
+      });
     }
-  }
-  sheet.appendRow([payload.id, payload.nome, payload.turno]);
-  return { success: true };
-}
-
-function salvarGestorContratoLogica(payload) {
-  let sheet = getSheetSafe('Contratos_ListaGestores');
-  let data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === payload.id) {
-      sheet.getRange(i + 1, 2).setValue(payload.nome); 
-      return { success: true };
+    
+    function fecharCamera() { 
+      document.getElementById('scan-line').style.display = 'none';
+      if (cameraScanner) { try { cameraScanner.stop().catch(e=>console.log(e)); } catch(e){} cameraScanner = null; } 
     }
-  }
-  sheet.appendRow([payload.id, payload.nome]);
-  return { success: true };
-}
 
-function salvarData(sheetName, rowData) {
-  getSheetSafe(sheetName).appendRow(rowData);
-  return { success: true };
-}
-
-function deletarLinha(sheetName, id) {
-  let sheet = getSheetSafe(sheetName);
-  let data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == id) {
-      sheet.deleteRow(i + 1);
-      return { success: true };
+    function abrirModalManual() { document.getElementById('input-manual-code').value = ''; abrirModal('modal-manual'); }
+    function confirmarCodigoManual() {
+      let code = document.getElementById('input-manual-code').value.trim();
+      if (!code) return alert("Digite um código válido.");
+      fecharModal('modal-manual'); fecharCamera(); voltarTela();
+      if (currentScanCallback) currentScanCallback(code);
     }
-  }
-  return { success: false };
-}
 
-function salvarStatusDiarioLogica(payload) {
-  let sheetDatas = getSheetSafe('Datas');
-  let sheetStatus = getSheetSafe('StatusDiario');
-  
-  if(payload.isEdit) {
-    let datas = sheetDatas.getDataRange().getValues();
-    for (let i = 1; i < datas.length; i++) {
-      if (datas[i][0] === payload.idData) {
-        sheetDatas.getRange(i + 1, 3).setValue(payload.dataString);
-        sheetDatas.getRange(i + 1, 4).setValue(payload.dataISO);
-        sheetDatas.getRange(i + 1, 5).setValue(payload.turno);
-        break;
+    // --- FUNCOES FALTAS ---
+    function renderPeriodos() {
+      let div = document.getElementById('lista-periodos'); div.innerHTML = '';
+      if(!db.periodos || db.periodos.length === 0) { div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhum período criado.</p>'; return; }
+      db.periodos.slice().reverse().forEach(p => {
+        let iStr = formatISOtoBR(p.DataInicial); let fStr = formatISOtoBR(p.DataFinal); let formatado = (iStr && fStr) ? `${iStr} a ${fStr}` : (iStr || 'Indefinido');
+        div.innerHTML += `<div class="btn" style="cursor:default; padding: 12px 16px;"><span style="flex-grow:1; cursor:pointer;" onclick="preSelecionarPeriodo('${p.ID}')">📅 ${formatado}</span><button class="icon-btn" onclick="editarPeriodo('${p.ID}')">✏️</button><button class="icon-btn" style="color:var(--red);" onclick="excluirPeriodo('${p.ID}')">❌</button></div>`;
+      });
+    }
+    function salvarPeriodo() {
+      let editId = document.getElementById('edit-periodo-id').value; let i = document.getElementById('per-inicio').value; let f = document.getElementById('per-fim').value;
+      if(!i || !f) return alert("Preencha a data.");
+      if (editId) { let per = db.periodos.find(p => p.ID === editId); if (per) { per.DataInicial = i; per.DataFinal = f; } } 
+      else { editId = generateID(); db.periodos.push({ ID: editId, DataInicial: i, DataFinal: f }); }
+      saveDBLocal(); renderPeriodos(); fecharModal('modal-add-periodo'); sendInBackground('salvarPeriodo', { id: editId, inicio: i, fim: f, isEdit: !!document.getElementById('edit-periodo-id').value });
+    }
+    function editarPeriodo(id) { let per = db.periodos.find(p => p.ID === id); if (!per) return; document.getElementById('edit-periodo-id').value = per.ID; document.getElementById('per-inicio').value = String(per.DataInicial).substring(0,10); document.getElementById('per-fim').value = String(per.DataFinal).substring(0,10); abrirModal('modal-add-periodo'); }
+    function excluirPeriodo(id) { if(confirm("Excluir?")) { db.periodos = db.periodos.filter(p => p.ID !== id); saveDBLocal(); renderPeriodos(); sendInBackground('excluirPeriodo', { id: id }); } }
+    
+    function preSelecionarPeriodo(id) { context.periodoId = id; abrirModal('modal-selecionar-turno'); }
+    function entrarPeriodo(turno) { 
+      context.turno = turno; 
+      document.getElementById('lbl-turno').innerText = turno; 
+      document.getElementById('lbl-turno-gestores').innerText = turno;
+      fecharModal('modal-selecionar-turno'); 
+      renderDatas(); navegar('screen-datas'); 
+    }
+
+    function renderDatas() {
+      let div = document.getElementById('lista-datas'); div.innerHTML = '';
+      let datasFiltradas = db.datas.filter(d => d.ID_Periodo === context.periodoId && d.Turno === context.turno).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
+      if(datasFiltradas.length === 0) div.innerHTML = '<p style="text-align:center; color:var(--text-light);">Nenhuma data criada para este turno.</p>';
+      
+      datasFiltradas.forEach(d => {
+        let statusList = db.statusDiario.filter(s => s.ID_Data === d.ID && String(s.TeveRelatorio).toLowerCase() === 'true');
+        let totalTeve = statusList.length; let entC = 0; let devC = 0;
+        statusList.forEach(s => { let hist = db.registros ? db.registros.filter(r => r.ID_Data === d.ID && r.ID_Gestor === s.ID_Gestor) : []; if(hist.some(h => h.Acao === 'Devolver')) { devC++; entC++; } else if(hist.some(h => h.Acao === 'Entregar')) { entC++; } });
+        let corClasse = 'status-gray'; let pctText = 'Não configurado';
+        if(totalTeve > 0) { pctText = `${devC}/${totalTeve} Devolvidos`; if(devC === totalTeve) corClasse = 'status-green'; else if(entC > devC) corClasse = 'status-red'; else corClasse = 'status-yellow'; }
+        let dStr = formatISOtoBR(d.DataISO) || d.DataString;
+        div.innerHTML += `<div class="btn ${corClasse}" style="padding: 12px; cursor:default;"><div style="flex-grow:1; cursor:pointer;" onclick="entrarData('${d.ID}')"><div style="font-weight:bold;">🗓️ ${dStr}</div><div style="font-size:0.8rem; color:var(--text-light); margin-top:3px;">${pctText}</div></div><button class="icon-btn" onclick="prepararModalData(true, '${d.ID}')">✏️</button></div>`;
+      });
+      calcularProgresso(datasFiltradas);
+    }
+    
+    function prepararModalData(isEdit, idData = null) {
+      let divCheck = document.getElementById('list-check-gestores'); divCheck.innerHTML = '';
+      let gestoresTurno = db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome));
+      if(gestoresTurno.length === 0){
+         divCheck.innerHTML = '<p style="color:var(--red);">Nenhum gestor cadastrado neste turno.</p>';
+      } else {
+         gestoresTurno.forEach(g => { divCheck.innerHTML += `<label style="display:block; padding: 6px; border-bottom:1px solid #f1f5f9;"><input type="checkbox" value="${g.ID}" id="chk_${g.ID}"> ${g.Nome}</label>`; });
       }
+
+      if(isEdit) {
+        let d = db.datas.find(x => x.ID === idData); document.getElementById('edit-data-id').value = d.ID; document.getElementById('data-nova-inicio').value = String(d.DataISO).substring(0,10);
+        document.getElementById('bloco-data-fim').style.display = 'none';
+        db.statusDiario.filter(s => s.ID_Data === idData).forEach(s => { let chk = document.getElementById('chk_' + s.ID_Gestor); if(chk && String(s.TeveRelatorio).toLowerCase() === 'true') chk.checked = true; });
+      } else { document.getElementById('edit-data-id').value = ''; document.getElementById('data-nova-inicio').value = ''; document.getElementById('data-nova-fim').value = ''; document.getElementById('bloco-data-fim').style.display = 'block'; }
+      abrirModal('modal-add-data');
     }
-    let status = sheetStatus.getDataRange().getValues();
-    for (let i = status.length - 1; i >= 1; i--) {
-      if (status[i][0] === payload.idData) {
-        sheetStatus.deleteRow(i + 1);
+    
+    function salvarDataDiaria() {
+      let editId = document.getElementById('edit-data-id').value; let dIni = document.getElementById('data-nova-inicio').value; let dFim = document.getElementById('data-nova-fim').value;
+      if(!dIni) return alert("Selecione a Data.");
+      let sIni = formatISOtoBR(dIni); let sFim = dFim ? formatISOtoBR(dFim) : ''; let dLabel = (sFim && sFim !== sIni) ? `${sIni} a ${sFim}` : sIni;
+      let targetId = editId || generateID();
+      let statusList = Array.from(document.querySelectorAll('#list-check-gestores input[type="checkbox"]')).map(c => ({ idGestor: c.value, teve: c.checked }));
+      if(editId) { 
+        let dObj = db.datas.find(x => x.ID === editId); dObj.DataString = dLabel; dObj.DataISO = dIni; db.statusDiario = db.statusDiario.filter(s => s.ID_Data !== editId); 
+      } else { 
+        db.datas.push({ ID: targetId, ID_Periodo: context.periodoId, DataString: dLabel, DataISO: dIni, Turno: context.turno }); 
       }
+      statusList.forEach(s => { db.statusDiario.push({ ID_Data: targetId, ID_Gestor: s.idGestor, TeveRelatorio: s.teve }); });
+      saveDBLocal(); renderDatas(); fecharModal('modal-add-data');
+      sendInBackground('salvarStatusDiario', { idData: targetId, idPeriodo: context.periodoId, dataString: dLabel, dataISO: dIni, turno: context.turno, gestoresStatus: statusList, isEdit: !!editId });
     }
-  } else {
-    sheetDatas.appendRow([payload.idData, payload.idPeriodo, payload.dataString, payload.dataISO, payload.turno]);
-  }
-  
-  payload.gestoresStatus.forEach(gs => {
-    sheetStatus.appendRow([payload.idData, gs.idGestor, gs.teve]);
-  });
-  return { success: true };
-}
-
-function buscarPessoa(codigo) {
-  if (!codigo) return { matricula: 'N/A', nome: 'Não Identificado' };
-  let sheet = getSheetSafe('nomes');
-  let data = sheet.getDataRange().getValues();
-  let target = String(codigo).trim().toLowerCase();
-
-  for(let i = 1; i < data.length; i++) {
-    let cellCode = String(data[i][2]).trim();
-    let cellMat = String(data[i][0]).trim();
-    if(cellCode.toLowerCase() === target || cellCode.replace(/\D/g, '') === target.replace(/\D/g, '') || cellMat.replace(/\D/g, '') === target.replace(/\D/g, '')) {
-      return { matricula: cellMat, nome: String(data[i][1]).trim() };
+    
+    function calcularProgresso(datasPer) {
+      let tot = 0; let dev = 0;
+      datasPer.forEach(d => { db.statusDiario.filter(s => s.ID_Data === d.ID && String(s.TeveRelatorio).toLowerCase() === 'true').forEach(s => { tot++; if(db.registros.some(r => r.ID_Data === d.ID && r.ID_Gestor === s.ID_Gestor && r.Acao === 'Devolver')) dev++; }); });
+      if(tot === 0) { document.getElementById('progress-bar').style.width = '0%'; document.getElementById('progress-text').innerText = '0% Devolvido'; return; }
+      let pct = Math.round((dev / tot) * 100); document.getElementById('progress-bar').style.width = pct + '%'; document.getElementById('progress-text').innerText = `${pct}% Devolvido (${dev}/${tot})`;
     }
-  }
-  return { matricula: 'N/A', nome: String(codigo).trim() };
-}
 
-function registrarAcao(payload) {
-  let sheetReg = getSheetSafe('Registros');
-  let dataReg = sheetReg.getDataRange().getValues();
-  for(let i = 1; i < dataReg.length; i++){
-    if(dataReg[i][0] === payload.idData && dataReg[i][1] === payload.idGestor && dataReg[i][2] === payload.acao) {
-       return { success: true, message: "Ação já existia no banco." };
+    function entrarData(idData) {
+      context.dataId = idData;
+      let div = document.getElementById('lista-gestores-data'); div.innerHTML = '';
+      let statusData = db.statusDiario.filter(s => s.ID_Data === idData && String(s.TeveRelatorio).toLowerCase() === 'true');
+      let gRender = [];
+      statusData.forEach(s => { let g = db.gestores.find(x => x.ID === s.ID_Gestor); if(g) gRender.push({ g: g, s: s }); });
+      gRender.sort((a,b) => a.g.Nome.localeCompare(b.g.Nome)).forEach(item => {
+        let gestor = item.g; let historico = db.registros ? db.registros.filter(r => r.ID_Data === idData && r.ID_Gestor === gestor.ID) : [];
+        let corClasse = 'status-yellow'; if (historico.some(h => h.Acao === 'Devolver')) corClasse = 'status-green'; else if (historico.some(h => h.Acao === 'Entregar')) corClasse = 'status-red'; 
+        div.innerHTML += `<button class="btn ${corClasse}" onclick="abrirAcoesGestor('${gestor.ID}', '${gestor.Nome}')">${gestor.Nome}</button>`;
+      });
+      navegar('screen-relatorios');
     }
-  }
+    
+    function abrirAcoesGestor(idGestor, nomeGestor) { context.gestorId = idGestor; document.getElementById('lbl-acao-gestor').innerText = nomeGestor; abrirModal('modal-acoes'); }
 
-  let adminObj = buscarPessoa(payload.responsavel);
-  let nomeAdminParaSalvar = adminObj.matricula !== 'N/A' ? adminObj.nome : payload.responsavel;
-  sheetReg.appendRow([payload.idData, payload.idGestor, payload.acao, payload.codigoLido, nomeAdminParaSalvar, payload.dataHora]);
-  atualizarAbaRelatorios(payload, nomeAdminParaSalvar);
-  return { success: true };
-}
+    function dispararAcao(acao) {
+      if (moduloAtual === 'CONTRATOS') return dispararAcaoContrato(acao);
+      
+      let jaExiste = db.registros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && r.Acao === acao);
+      if (jaExiste) { alert(`Opa! Este gestor já consta como ${acao.toUpperCase()} no sistema nesta data.`); return; }
+      
+      fecharModal('modal-acoes');
+      let instrucao = acao === 'Entregar' ? "Escaneie o crachá de QUEM RECEBEU." : "Escaneie o crachá de QUEM DEVOLVEU.";
+      abrirCamera(instrucao, (codigo) => { executarAcao(acao, codigo); });
+    }
 
-function atualizarAbaRelatorios(payload, nomeAdminSalvo) {
-  let sheetRel = getSheetSafe('Relatorios');
-  let sheetDatas = getSheetSafe('Datas');
-  let datas = sheetDatas.getDataRange().getValues();
-  let periodoId = ''; let dataStr = '';
-  
-  for (let i = 1; i < datas.length; i++) {
-    if (String(datas[i][0]) === String(payload.idData)) {
-      periodoId = datas[i][1]; dataStr = datas[i][2]; break;
+    function executarAcao(acao, codigoLido) {
+      let dataHora = new Date().toLocaleString("pt-BR");
+      db.registros.push({ 
+        ID_Data: context.dataId, ID_Gestor: context.gestorId, Acao: acao, CodigoLido: codigoLido, AdminLogado: loggedUserBarcode, DataHora: dataHora 
+      });
+      saveDBLocal(); entrarData(context.dataId);
+      
+      let gestorObj = db.gestores.find(g => g.ID === context.gestorId);
+      sendInBackground('registrarAcao', { 
+        idData: context.dataId, idGestor: context.gestorId, turno: context.turno, 
+        acao: acao, codigoLido: codigoLido, responsavel: loggedUserBarcode, dataHora: dataHora, 
+        gestorNome: (gestorObj ? gestorObj.Nome : 'Desconhecido') 
+      });
     }
-  }
-  
-  let gestorNome = payload.gestorNome || 'Desconhecido';
-  let pessoaLida = buscarPessoa(payload.codigoLido);
-  let strPessoaLida = pessoaLida.matricula !== 'N/A' ? `${pessoaLida.nome}` : `${payload.codigoLido}`;
-  let turno = payload.turno || 'A';
-  let rows = sheetRel.getDataRange().getValues();
-  let foundIndex = -1;
-  
-  for (let k = 1; k < rows.length; k++) {
-    if (String(rows[k][0]) === String(periodoId) && 
-        String(rows[k][1]) === String(dataStr) && 
-        String(rows[k][3]).trim() === String(gestorNome).trim()) {
-      foundIndex = k + 1; break;
-    }
-  }
-  
-  if (foundIndex > -1) {
-    if (payload.acao === 'Entregar') {
-      sheetRel.getRange(foundIndex, 5).setValue('Entregue');
-      sheetRel.getRange(foundIndex, 6).setValue(nomeAdminSalvo); 
-      sheetRel.getRange(foundIndex, 7).setValue(strPessoaLida); 
-      sheetRel.getRange(foundIndex, 8).setValue(payload.dataHora); 
-    } else if (payload.acao === 'Devolver') {
-      sheetRel.getRange(foundIndex, 5).setValue('Devolvido');
-      sheetRel.getRange(foundIndex, 9).setValue(strPessoaLida); 
-      sheetRel.getRange(foundIndex, 10).setValue(nomeAdminSalvo); 
-      sheetRel.getRange(foundIndex, 11).setValue(payload.dataHora); 
-    }
-  } else {
-    let status = payload.acao === 'Entregar' ? 'Entregue' : 'Devolvido';
-    let admEntregou = payload.acao === 'Entregar' ? nomeAdminSalvo : '';
-    let paraQuemEntregou = payload.acao === 'Entregar' ? strPessoaLida : '';
-    let dtEntrega = payload.acao === 'Entregar' ? payload.dataHora : '';
-    let qmDevolveu = payload.acao === 'Devolver' ? strPessoaLida : '';
-    let admRecebeu = payload.acao === 'Devolver' ? nomeAdminSalvo : '';
-    let dtDevolucao = payload.acao === 'Devolver' ? payload.dataHora : '';
-    sheetRel.appendRow([periodoId, dataStr, turno, gestorNome, status, admEntregou, paraQuemEntregou, dtEntrega, qmDevolveu, admRecebeu, dtDevolucao]);
-  }
-}
 
-function salvarDataContratoLog(payload) {
-  let sheet = getSheetSafe('Contratos_Datas');
-  if(payload.isEdit) {
-    let data = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === payload.id) {
-        sheet.getRange(i + 1, 2).setValue(payload.dataStr);
-        sheet.getRange(i + 1, 3).setValue(payload.dataISO);
-        return { success: true };
+    function consultarHistoricoLocal() {
+      fecharModal('modal-acoes'); abrirModal('modal-historico');
+      
+      let historico = [];
+      if(moduloAtual === 'CONTRATOS') {
+          historico = (db.contratosRegistros || []).filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(context.matriculaColab));
+      } else {
+          historico = db.registros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId);
       }
+      
+      if(!historico || historico.length === 0) { document.getElementById('conteudo-historico').innerHTML = "<p style='text-align:center;'>Nenhuma ação registrada.</p>"; return; }
+      
+      let html = '<table class="matrix-table" style="width:100%;"><thead><tr><th>Ação</th><th>Com Quem?</th><th>Data/Hora</th><th>Admin</th></tr></thead><tbody>';
+      historico.forEach(h => {
+        let aStr = h.acao || h.Acao; let cor = aStr === 'Devolver' ? 'var(--green)' : 'var(--red)';
+        
+        // Pega exatamente a pessoa que escaneou a câmera
+        let nomeAlvo = getNomeLocal(h.CodigoLido); 
+        let nomeAdmin = getNomeLocal(h.AdminLogado || h.admin || h.ResponsavelLogin); 
+        let dh = formatDateTimeBR(h.dataHora || h.DataHora);
+        
+        html += `<tr><td style="color:${cor}; font-weight:bold;">${aStr}</td><td>${nomeAlvo}</td><td>${dh}</td><td>${nomeAdmin}</td></tr>`;
+      });
+      html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
     }
-  }
-  sheet.appendRow([payload.id, payload.dataStr, payload.dataISO]);
-  return { success: true };
-}
 
-function salvarGestoresContratoLog(payload) {
-  let sheet = getSheetSafe('Contratos_Gestores');
-  let data = sheet.getDataRange().getValues();
-  for (let i = data.length - 1; i >= 1; i--) {
-    if (data[i][0] === payload.idData) sheet.deleteRow(i + 1);
-  }
-  payload.gestores.forEach(gId => sheet.appendRow([payload.idData, gId]));
-  return { success: true };
-}
-
-function deletarColabContrato(payload) {
-  let sheet = getSheetSafe('Contratos_Colaboradores');
-  let data = sheet.getDataRange().getValues();
-  for (let i = data.length - 1; i >= 1; i--) {
-    if (data[i][0] === payload.idData && data[i][1] === payload.idGestor && String(data[i][2]) === String(payload.matricula)) {
-      sheet.deleteRow(i + 1);
-      return { success: true };
+    // Config de Gestores (Faltas)
+    function abrirGestoresConfig() { 
+      let div = document.getElementById('lista-config-gestores'); div.innerHTML = ''; 
+      db.gestores.filter(g => g.Turno === context.turno).sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { 
+        div.innerHTML += `<div class="btn" style="padding: 10px; cursor: default;"><span style="flex-grow:1;">${g.Nome}</span><button class="icon-btn" onclick="editarGestor('${g.ID}')">✏️</button><button class="icon-btn" onclick="excluirGestor('${g.ID}')" style="color:var(--red);">❌</button></div>`; 
+      }); 
+      abrirModal('modal-gestores-config'); 
     }
-  }
-  return { success: false };
-}
+    function prepararModalNovoGestor() { document.getElementById('edit-gestor-id').value = ''; document.getElementById('nome-gestor').value = ''; document.getElementById('turno-gestor').value = context.turno || 'A'; document.getElementById('lbl-modal-gestor-titulo').innerText = "Novo Gestor"; abrirModal('modal-add-gestor'); }
+    function salvarNovoGestor() { 
+      let editId = document.getElementById('edit-gestor-id').value; let nomeRaw = document.getElementById('nome-gestor').value.trim(); let turnoSel = document.getElementById('turno-gestor').value;
+      if(!nomeRaw) return; 
+      let baseName = nomeRaw.replace(/\s*\([AB]\)$/i, '').trim();
+      let finalId = editId || generateID(); 
+      if (editId) { let g = db.gestores.find(x => x.ID === editId); if (g) { g.Nome = nomeRaw; g.Turno = turnoSel; } } else { db.gestores.push({ ID: finalId, Nome: nomeRaw, Turno: turnoSel }); }
+      saveDBLocal(); abrirGestoresConfig(); fecharModal('modal-add-gestor'); sendInBackground('salvarGestor', { id: finalId, nome: nomeRaw, turno: turnoSel }); 
+    }
+    function editarGestor(id) { let g = db.gestores.find(item => item.ID === id); if(!g) return; document.getElementById('edit-gestor-id').value = g.ID; document.getElementById('nome-gestor').value = g.Nome; document.getElementById('turno-gestor').value = g.Turno || 'A'; document.getElementById('lbl-modal-gestor-titulo').innerText = "Editar Gestor"; abrirModal('modal-add-gestor'); }
+    function excluirGestor(id) { if(confirm("Deseja remover?")) { db.gestores = db.gestores.filter(g => g.ID !== id); saveDBLocal(); abrirGestoresConfig(); sendInBackground('excluirGestor', { id: id }); } }
+
+
+    // =====================================
+    // MÓDULO CONTRATOS
+    // =====================================
+    function renderDatasContratos() {
+      let div = document.getElementById('lista-contratos-datas'); div.innerHTML = '';
+      let datas = (db.contratosDatas || []).sort((a, b) => String(b.DataISO).localeCompare(String(a.DataISO)));
+      datas.forEach(d => {
+        let dStr = formatISOtoBR(d.DataISO) || d.DataString;
+        div.innerHTML += `<div class="btn status-gray" style="padding: 12px; cursor:default;">
+          <div style="flex-grow:1; cursor:pointer;" onclick="entrarDataContrato('${d.ID}')"><strong>🗓️ ${dStr}</strong></div>
+          <button class="icon-btn" onclick="abrirModalGestoresContrato('${d.ID}')">👥</button>
+        </div>`;
+      });
+    }
+
+    // -- Gestores Contratos Config (Menu Próprio) --
+    function abrirGestoresContratoConfig() { 
+      let div = document.getElementById('lista-config-gestores-contrato'); div.innerHTML = ''; 
+      (db.contratosListaGestores || []).sort((a,b) => a.Nome.localeCompare(b.Nome)).forEach(g => { 
+        div.innerHTML += `<div class="btn" style="padding: 10px; cursor: default;"><span style="flex-grow:1;">${g.Nome}</span><button class="icon-btn" onclick="editarGestorContrato('${g.ID}')">✏️</button><button class="icon-btn" onclick="excluirGestorContrato('${g.ID}')" style="color:var(--red);">❌</button></div>`; 
+      }); 
+      abrirModal('modal-gestores-contrato-config'); 
+    }
+    function prepararModalNovoGestorContrato() { document.getElementById('edit-gestor-contrato-id').value = ''; document.getElementById('nome-gestor-contrato').value = ''; document.getElementById('lbl-modal-gestor-contrato-titulo').innerText = "Novo Gestor (Contratos)"; abrirModal('modal-add-gestor-contrato'); }
+    function salvarNovoGestorContrato() {
+      let editId = document.getElementById('edit-gestor-contrato-id').value; let nomeRaw = document.getElementById('nome-gestor-contrato').value.trim();
+      if(!nomeRaw) return;
+      let finalId = editId || generateID();
+      if(!db.contratosListaGestores) db.contratosListaGestores = [];
+      if (editId) { let g = db.contratosListaGestores.find(x => x.ID === editId); if (g) g.Nome = nomeRaw; } else { db.contratosListaGestores.push({ ID: finalId, Nome: nomeRaw }); }
+      saveDBLocal(); abrirGestoresContratoConfig(); fecharModal('modal-add-gestor-contrato'); sendInBackground('salvarGestorContrato', { id: finalId, nome: nomeRaw });
+    }
+    function editarGestorContrato(id) { let g = db.contratosListaGestores.find(item => item.ID === id); if(!g) return; document.getElementById('edit-gestor-contrato-id').value = g.ID; document.getElementById('nome-gestor-contrato').value = g.Nome; document.getElementById('lbl-modal-gestor-contrato-titulo').innerText = "Editar Gestor"; abrirModal('modal-add-gestor-contrato'); }
+    function excluirGestorContrato(id) { if(confirm("Deseja remover?")) { db.contratosListaGestores = db.contratosListaGestores.filter(g => g.ID !== id); saveDBLocal(); abrirGestoresContratoConfig(); sendInBackground('excluirGestorContrato', { id: id }); } }
+    // ----------------------------------------------
+
+    function prepararModalDataContrato() { document.getElementById('edit-data-contrato-id').value = ''; document.getElementById('data-contrato-nova').value = ''; abrirModal('modal-add-data-contrato'); }
+    
+    function salvarDataContrato() {
+      let dt = document.getElementById('data-contrato-nova').value;
+      if(!dt) return;
+      let dtStr = formatISOtoBR(dt); let id = generateID();
+      if(!db.contratosDatas) db.contratosDatas = [];
+      db.contratosDatas.push({ID: id, DataString: dtStr, DataISO: dt});
+      saveDBLocal(); renderDatasContratos(); fecharModal('modal-add-data-contrato');
+      sendInBackground('salvarDataContrato', { id: id, dataStr: dtStr, dataISO: dt, isEdit: false });
+    }
+
+    function abrirModalGestoresContrato(idData) {
+      context.dataId = idData;
+      let div = document.getElementById('list-check-gestores-contrato'); div.innerHTML = '';
+      let gestoresData = (db.contratosGestores || []).filter(cg => cg.ID_Data === idData).map(cg => cg.ID_Gestor);
+      
+      (db.contratosListaGestores || []).sort((a,b)=>a.Nome.localeCompare(b.Nome)).forEach(g => {
+        let isChecked = gestoresData.includes(g.ID) ? 'checked' : '';
+        div.innerHTML += `<label style="display:block; padding:5px;"><input type="checkbox" value="${g.ID}" id="chk_c_${g.ID}" ${isChecked}> ${g.Nome}</label>`;
+      });
+      abrirModal('modal-gestores-contrato');
+    }
+
+    function salvarGestoresContrato() {
+      let checks = Array.from(document.querySelectorAll('#list-check-gestores-contrato input:checked')).map(c => c.value);
+      db.contratosGestores = (db.contratosGestores || []).filter(cg => cg.ID_Data !== context.dataId);
+      checks.forEach(gId => db.contratosGestores.push({ID_Data: context.dataId, ID_Gestor: gId}));
+      saveDBLocal(); fecharModal('modal-gestores-contrato');
+      sendInBackground('salvarGestoresContrato', { idData: context.dataId, gestores: checks });
+    }
+
+    // ATUALIZADO: Exibe os gestores da data de contrato com Cores.
+    function entrarDataContrato(idData) {
+      context.dataId = idData;
+      let div = document.getElementById('lista-contratos-gestores'); div.innerHTML = '';
+      let gestoresData = (db.contratosGestores || []).filter(cg => cg.ID_Data === idData);
+      
+      gestoresData.forEach(cg => {
+        let g = (db.contratosListaGestores || []).find(x => x.ID === cg.ID_Gestor);
+        if(g) {
+            // Lógica de cores baseada nos colaboradores
+            let colabs = (db.contratosColab || []).filter(c => c.ID_Data === idData && c.ID_Gestor === g.ID);
+            let total = colabs.length;
+            let dev = 0; let ent = 0;
+            colabs.forEach(c => {
+                let hist = (db.contratosRegistros || []).filter(r => r.ID_Data === idData && r.ID_Gestor === g.ID && String(r.Matricula) === String(c.Matricula));
+                if(hist.some(h => h.Acao === 'Devolver')) dev++;
+                else if(hist.some(h => h.Acao === 'Entregar')) ent++;
+            });
+
+            let corClasse = 'status-gray';
+            let statusText = '0 Colab.';
+            if (total > 0) {
+                statusText = `${dev}/${total} Devolvidos`;
+                if (dev === total) corClasse = 'status-green';
+                else if (ent > 0 && dev === 0) corClasse = 'status-red';
+                else corClasse = 'status-yellow';
+            }
+
+            div.innerHTML += `<div class="btn ${corClasse}" style="padding: 12px; cursor:default;">
+               <div style="flex-grow:1; cursor:pointer;" onclick="entrarColabContrato('${idData}', '${g.ID}')">
+                   <div style="font-weight:bold;">${g.Nome}</div>
+                   <div style="font-size:0.8rem; color:var(--text-light); margin-top:3px;">${statusText}</div>
+               </div>
+            </div>`;
+        }
+      });
+      navegar('screen-contratos-gestores');
+    }
+
+    function entrarColabContrato(idData, idGestor) {
+      context.dataId = idData; context.gestorId = idGestor;
+      renderListaColabContrato();
+      navegar('screen-contratos-colab');
+    }
+
+    function renderListaColabContrato() {
+      let div = document.getElementById('lista-contratos-colab'); div.innerHTML = '';
+      let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
+      
+      colabs.forEach(c => {
+        let nomeEncontrado = getNomeLocal(c.Matricula);
+        let exibicao = (nomeEncontrado === c.Matricula) ? `Mat: ${c.Matricula} (Carregando...)` : `${c.Matricula} - ${nomeEncontrado}`;
+        
+        let hist = (db.contratosRegistros || []).filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
+        let corClasse = 'status-yellow';
+        if(hist.some(h => h.Acao === 'Devolver')) corClasse = 'status-green';
+        else if(hist.some(h => h.Acao === 'Entregar')) corClasse = 'status-red';
+
+        div.innerHTML += `<div class="btn ${corClasse}" style="padding:10px;">
+          <span style="flex-grow:1; cursor:pointer;" onclick="abrirAcoesContrato('${c.Matricula}', '${nomeEncontrado}')">${exibicao}</span>
+          <button class="icon-btn" style="color:var(--red);" onclick="removerColabContrato('${c.Matricula}')">❌</button>
+        </div>`;
+      });
+    }
+
+    function addColabContrato() {
+      let mat = document.getElementById('input-mat-colab').value.trim();
+      if(mat.length < 4) return alert("Matrícula inválida.");
+      if(!db.contratosColab) db.contratosColab = [];
+      if(db.contratosColab.some(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId && String(c.Matricula) === mat)) return alert("Colaborador já adicionado.");
+      
+      db.contratosColab.push({ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: mat});
+      document.getElementById('input-mat-colab').value = '';
+      saveDBLocal(); renderListaColabContrato();
+      sendInBackground('addColabContrato', { idData: context.dataId, idGestor: context.gestorId, matricula: mat });
+    }
+
+    function removerColabContrato(mat) {
+      if(!confirm("Remover colaborador?")) return;
+      db.contratosColab = db.contratosColab.filter(c => !(c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId && String(c.Matricula) === String(mat)));
+      saveDBLocal(); renderListaColabContrato();
+      sendInBackground('removerColabContrato', { idData: context.dataId, idGestor: context.gestorId, matricula: mat });
+    }
+
+    function abrirAcoesContrato(matricula, nome) {
+      context.matriculaColab = matricula;
+      document.getElementById('lbl-acao-gestor').innerText = nome === matricula ? `Mat: ${matricula}` : nome;
+      abrirModal('modal-acoes');
+    }
+
+    // ATUALIZADO: Abre a Câmera para confirmar entrega ou devolução do Contrato.
+    // 1. SUBSTITUA A FUNÇÃO DE AÇÃO INDIVIDUAL DOS CONTRATOS
+    function dispararAcaoContrato(acao) {
+      if(!db.contratosRegistros) db.contratosRegistros = [];
+      
+      // Verifica se a ação já existe antes de abrir a câmera
+      let jaExiste = db.contratosRegistros.some(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(context.matriculaColab) && r.Acao === acao);
+      if(jaExiste) {
+          alert("Esta ação já foi registrada para esta pessoa.");
+          return;
+      }
+
+      fecharModal('modal-acoes');
+      let instrucao = acao === 'Entregar' ? "Escaneie o crachá de QUEM ESTÁ RECEBENDO." : "Escaneie o crachá de QUEM ESTÁ DEVOLVENDO.";
+      
+      // Abre a câmera
+      abrirCamera(instrucao, (codigoLidoScanner) => {
+          let dh = new Date().toLocaleString("pt-BR");
+          
+          db.contratosRegistros.push({
+            ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: context.matriculaColab,
+            Acao: acao, CodigoLido: codigoLidoScanner, AdminLogado: loggedUserBarcode, DataHora: dh
+          });
+          
+          saveDBLocal(); renderListaColabContrato();
+          sendInBackground('registrarAcaoContrato', {
+            idData: context.dataId, idGestor: context.gestorId, matricula: context.matriculaColab,
+            acao: acao, codigoLido: codigoLidoScanner, responsavel: loggedUserBarcode, dataHora: dh
+          });
+      });
+    }
+
+    function entregarColetivoContrato() {
+      let colabs = (db.contratosColab || []).filter(c => c.ID_Data === context.dataId && c.ID_Gestor === context.gestorId);
+      if(colabs.length === 0) return alert("Nenhum colaborador adicionado a este gestor!");
+      
+      if(!db.contratosRegistros) db.contratosRegistros = [];
+      
+      // Separa apenas os que ainda não foram entregues
+      let pendentes = [];
+      colabs.forEach(c => {
+         let historico = db.contratosRegistros.filter(r => r.ID_Data === context.dataId && r.ID_Gestor === context.gestorId && String(r.Matricula) === String(c.Matricula));
+         if(!historico.some(h => h.Acao === 'Entregar')) {
+             pendentes.push(c);
+         }
+      });
+      
+      if(pendentes.length === 0) return alert("Todos já constam como ENTREGUES!");
+
+      // Pede a câmera para saber quem está levando esse lote
+      abrirCamera(`Escaneie o crachá de QUEM RECEBERÁ os ${pendentes.length} contratos.`, (codigoLidoScanner) => {
+          let dh = new Date().toLocaleString("pt-BR");
+          let payloadRegistros = [];
+          
+          pendentes.forEach(c => {
+             let novoReg = {
+               ID_Data: context.dataId, ID_Gestor: context.gestorId, Matricula: c.Matricula,
+               Acao: 'Entregar', CodigoLido: codigoLidoScanner, AdminLogado: loggedUserBarcode, DataHora: dh
+             };
+             db.contratosRegistros.push(novoReg);
+             payloadRegistros.push({ ...novoReg, responsavel: loggedUserBarcode });
+          });
+          
+          saveDBLocal(); renderListaColabContrato();
+          sendInBackground('registrarAcaoContratoColetivo', { registros: payloadRegistros });
+      });
+    }
+    function abrirPainelContratos() {
+      renderizarMatrizContratos();
+      abrirModal('modal-painel-contratos');
+    }
+
+    function renderizarMatrizContratos() {
+      let tb = document.getElementById('tb-matriz-contratos');
+      tb.innerHTML = '';
+      
+      let datasContratos = (db.contratosDatas || []).sort((a,b) => String(a.DataISO).localeCompare(String(b.DataISO)));
+      if(datasContratos.length === 0) { 
+        tb.innerHTML = '<tr><td style="padding: 20px;">Nenhuma data de contrato cadastrada.</td></tr>'; 
+        return; 
+      }
+      
+      let thead = '<thead><tr><th>Gestor</th>';
+      datasContratos.forEach(d => {
+        let dF = formatISOtoBR(d.DataISO) || d.DataString;
+        thead += `<th>${dF.substring(0, 5)}</th>`;
+      });
+      thead += '</tr></thead>';
+      
+      let tbody = '<tbody>';
+      let gestoresVistos = new Set();
+      (db.contratosGestores || []).forEach(cg => gestoresVistos.add(cg.ID_Gestor));
+      let gestoresFiltrados = (db.contratosListaGestores || []).filter(g => gestoresVistos.has(g.ID)).sort((a,b) => a.Nome.localeCompare(b.Nome));
+      
+      if(gestoresFiltrados.length === 0) {
+          tbody += `<tr><td colspan="${datasContratos.length + 1}">Nenhum gestor vinculado às datas.</td></tr>`;
+      }
+
+      gestoresFiltrados.forEach(gestor => {
+        tbody += `<tr><td>${gestor.Nome}</td>`;
+        datasContratos.forEach(d => {
+          let vinculado = (db.contratosGestores || []).some(cg => cg.ID_Data === d.ID && cg.ID_Gestor === gestor.ID);
+          
+          if(!vinculado) {
+            tbody += `<td class="cell-none">-</td>`;
+          } else {
+            let colabs = (db.contratosColab || []).filter(c => c.ID_Data === d.ID && c.ID_Gestor === gestor.ID);
+            let total = colabs.length;
+            let acaoClick = `onclick="fecharModal('modal-painel-contratos'); entrarColabContrato('${d.ID}', '${gestor.ID}')"`;
+            
+            if(total === 0) {
+                tbody += `<td class="cell-yellow" ${acaoClick}>0 Colab.</td>`;
+            } else {
+                let dev = 0; let ent = 0;
+                colabs.forEach(c => {
+                    let hist = (db.contratosRegistros || []).filter(r => r.ID_Data === d.ID && r.ID_Gestor === gestor.ID && String(r.Matricula) === String(c.Matricula));
+                    if(hist.some(h => h.Acao === 'Devolver')) dev++;
+                    else if(hist.some(h => h.Acao === 'Entregar')) ent++;
+                });
+                
+                let classe = 'cell-yellow';
+                if (dev === total) classe = 'cell-green'; 
+                else if (ent > 0 && dev === 0) classe = 'cell-red'; 
+                
+                tbody += `<td class="${classe}" ${acaoClick}>${dev}/${total} OK</td>`;
+            }
+          }
+        });
+        tbody += '</tr>';
+      });
+      
+      tbody += '</tbody>';
+      tb.innerHTML = thead + tbody;
+    }
+  </script>
+</body>
+</html>
