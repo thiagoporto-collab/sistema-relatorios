@@ -63,7 +63,24 @@
 <body>
 
   <!-- TELA 1: HOME -->
- <div id="screen-home" class="screen active-screen">
+  <div id="screen-home" class="screen active-screen">
+    <div class="header">Sistema de Relatórios</div>
+    <div class="container">
+      <div id="user-info" style="display:none; text-align:center; margin-bottom:20px; padding:15px; background:var(--green-light); color:#065f46; border-radius:8px; font-weight:600;">
+        <span id="lbl-user-name">Usuário Logado</span> <br>
+        <button onclick="fazerLogout()" style="margin-top:10px; background:white; border:1px solid #065f46; color:#065f46; padding:5px 15px; border-radius:4px; cursor:pointer;">Trocar Usuário</button>
+      </div>
+      
+      <button class="btn btn-primary" onclick="iniciarLogin('FALTAS')" style="font-size: 1.1rem; padding: 20px;">📄 RELATÓRIO DE FALTAS</button>
+      <button class="btn btn-primary" onclick="iniciarLogin('CONTRATOS')" style="font-size: 1.1rem; padding: 20px; background: var(--yellow); color: #000;">📄 CONTRATOS</button>
+      
+      <!-- Botão para forçar recarregamento / atualização do sistema sem perder o login -->
+      <button class="btn" style="justify-content: center; background: transparent; border: 1px solid var(--gray); color: var(--text-light); margin-top: 10px;" onclick="sendInBackground('sincronizar', {})">🔄 Forçar Atualização</button>
+
+      <div id="network-status" class="toast"></div>
+    </div>
+  </div>
+
   <!-- TELA: CÂMERA -->
   <div id="screen-camera" class="screen">
     <div class="header">
@@ -463,8 +480,11 @@
                 atualizarUIUsuario(); 
                 
                 // Recarrega as views abertas para garantir que estão atualizadas
-                if(currentScreen === 'screen-contratos-painel') renderPainelContratosAuto();
-                if(currentScreen === 'screen-contratos-colab') renderListaColabAuto();
+                if (currentScreen === 'screen-periodos') renderPeriodos();
+                if (currentScreen === 'screen-datas') renderDatas();
+                if (currentScreen === 'screen-relatorios') entrarData(context.dataId);
+                if (currentScreen === 'screen-contratos-painel') renderPainelContratosAuto();
+                if (currentScreen === 'screen-contratos-colab') renderListaColabAuto();
                 
                 showToastInfo("✅ Tudo atualizado!", "var(--green)");
             }
@@ -867,7 +887,7 @@
       } 
     }
 
-    // --- MATRIZ DE CONTROLE (FALTAS) RESTAURADA COMPLETA ---
+    // --- MATRIZ DE CONTROLE (FALTAS) ---
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select'); 
       if(!sel) return;
@@ -919,7 +939,6 @@
           if(teve) {
             let hist = (db.registros || []).filter(r => r.ID_Data === d.ID && r.ID_Gestor === gestor.ID);
             
-            // 🛡️ CORREÇÃO DE CLIQUE: Agora ele fecha a janela da matriz e abre a tela da Data correspondente perfeitamente.
             if(hist.some(h => h.Acao === 'Devolver')) { 
                 classe = 'cell-green'; 
                 texto = 'OK'; 
@@ -1006,6 +1025,7 @@
       let div = document.getElementById('lista-gestores-contrato-auto');
       div.innerHTML = '';
       if(!mesSel) return;
+      
       let [mSel, ySel] = mesSel.split('/');
       let mesYMD = `${ySel}-${mSel}`; 
 
@@ -1091,7 +1111,7 @@
       });
     }
 
-    // --- MATRIZ GERAL DE CONTRATOS RESTAURADA ---
+    // --- MATRIZ GERAL DE CONTRATOS ---
     function abrirMatrizContratos() {
       renderizarMatrizContratos();
       abrirModal('modal-painel-contratos');
@@ -1147,7 +1167,6 @@
             if(dev === total) classe = 'cell-green';
             else if(ent > 0) classe = 'cell-red';
 
-            // Clicando na matriz, fecha ela e vai pra tela do gestor
             let acaoClick = `onclick="fecharModal('modal-painel-contratos'); entrarGestorContratoAuto('${mesYMD}', '${g}')"`;
             tbody += `<td class="${classe}" ${acaoClick}>${dev}/${total} OK</td>`;
           }
