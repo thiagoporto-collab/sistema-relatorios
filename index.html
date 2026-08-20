@@ -36,7 +36,7 @@
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.7); z-index: 1000; backdrop-filter: blur(2px); }
     .modal-content { background: var(--card-bg); width: 90%; max-width: 500px; margin: 10% auto; padding: 25px; border-radius: 12px; position: relative; max-height: 80vh; overflow-y: auto; }
     
-    /* 🛡️ CORREÇÃO DE UI: O Botão X nunca mais sobrepõe elementos */
+    /* 🛡️ CORREÇÃO: O Botão X nunca mais sobrepõe elementos */
     .close-modal { 
       position: absolute; right: 12px; top: 12px; font-size: 1.6rem; cursor: pointer; color: var(--gray); line-height: 1;
       background: var(--gray-light); border-radius: 50%; width: 34px; height: 34px; 
@@ -48,7 +48,6 @@
     .progress-fill { background: var(--secondary); height: 100%; border-radius: 5px; transition: width 0.4s ease; }
     .progress-text { text-align: right; font-size: 0.85rem; color: var(--text-light); margin-top: 0; font-weight: 600;}
 
-    /* ÁREA DO SCANNER */
     .scanner-container { position: relative; width: 100%; border: 2px dashed var(--gray); border-radius: 8px; overflow: hidden; }
     #reader { width: 100%; border: none; }
     .scan-line {
@@ -59,7 +58,11 @@
     }
     @keyframes scan { 0% { top: 5%; } 50% { top: 95%; } 100% { top: 5%; } }
 
-    .toast { text-align: center; color: var(--red); font-weight: bold; margin-top: 15px; font-size: 0.9rem;}
+    .toast { 
+      text-align: center; color: var(--text-light); font-weight: bold; margin-top: 15px; font-size: 0.95rem;
+      background: var(--card-bg); padding: 10px; border-radius: 8px; box-shadow: var(--shadow);
+      display: none; border: 1px solid var(--border);
+    }
 
     input[type="text"], input[type="date"], input[type="number"], select { width: 100%; padding: 12px; margin: 8px 0 16px 0; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; font-family: inherit; font-size: 1rem; background: #fff; }
     label { font-weight: 600; font-size: 0.9rem; color: var(--text-light); }
@@ -87,7 +90,7 @@
 
       <button class="btn btn-primary" onclick="iniciarLogin('FALTAS')" style="font-size: 1.1rem; padding: 20px;">📄 RELATÓRIO DE FALTAS</button>
       <button class="btn btn-primary" onclick="iniciarLogin('CONTRATOS')" style="font-size: 1.1rem; padding: 20px; background: var(--yellow); color: #000;">📄 CONTRATOS</button>
-      <p id="network-status" class="toast"></p>
+      <div id="network-status" class="toast"></div>
     </div>
   </div>
 
@@ -172,7 +175,6 @@
   <div id="screen-contratos-colab" class="screen">
     <div class="header"><button class="btn-icon btn-back" onclick="voltarTela()">⬅️</button> Colaboradores <button class="btn-icon btn-home" onclick="irParaHome()">🏠</button></div>
     <div class="container">
-      
       <div class="btn-group-row" style="margin-bottom: 20px;">
         <button class="btn btn-action" style="background: var(--red); width: 50%; font-size: 0.95rem; padding: 12px;" onclick="entregarColetivoContrato()">📦 ENTREGAR TODOS</button>
         <button class="btn btn-action" style="background: var(--green); width: 50%; font-size: 0.95rem; padding: 12px;" onclick="devolverColetivoContrato()">📦 DEVOLVER TODOS</button>
@@ -186,20 +188,8 @@
     </div>
   </div>
 
-  <!-- === MODAIS === -->
+  <!-- === MODAIS ESTÁTICOS BASE === -->
   
-  <div id="modal-manual" class="modal-overlay">
-    <div class="modal-content">
-      <span class="close-modal" onclick="fecharModal('modal-manual')">×</span>
-      <h3 style="margin-top:0; padding-right: 40px;">Inserir Código</h3>
-      <input type="number" id="input-manual-code" placeholder="Digite o código de barras">
-      <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
-        <button class="btn btn-action" style="background: var(--green);" onclick="confirmarCodigoManual()">OK</button>
-        <button class="btn btn-action" style="background: var(--gray);" onclick="fecharModal('modal-manual')">Cancelar</button>
-      </div>
-    </div>
-  </div>
-
   <div id="modal-add-periodo" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-add-periodo')">×</span>
@@ -237,35 +227,6 @@
     </div>
   </div>
 
-  <div id="modal-acoes" class="modal-overlay">
-    <div class="modal-content">
-      <span class="close-modal" onclick="fecharModal('modal-acoes')">×</span>
-      <h3 style="text-align: center; margin-top:0; padding-right: 40px;" id="lbl-acao-gestor">Ações</h3>
-      <button class="btn" style="background: var(--card-bg); color: var(--text); justify-content: center; border-color: var(--border);" onclick="consultarHistoricoLocal()">🔎 Consultar Histórico</button>
-      <div class="btn-group-row" style="margin-bottom: 0;">
-        <button class="btn btn-action" style="background: var(--red);" onclick="dispararAcao('Entregar')">ENTREGAR</button>
-        <button class="btn btn-action" style="background: var(--green);" onclick="dispararAcao('Devolver')">DEVOLVER</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="modal-historico" class="modal-overlay">
-    <div class="modal-content" style="max-width: 600px;">
-      <span class="close-modal" onclick="fecharModal('modal-historico')">×</span>
-      <h3 style="margin-top:0; padding-right: 40px;">Histórico de Ações</h3>
-      <div id="conteudo-historico"></div>
-    </div>
-  </div>
-
-  <div id="modal-resumo" class="modal-overlay" style="z-index: 1100;">
-    <div class="modal-content">
-      <span class="close-modal" onclick="fecharModal('modal-resumo')">×</span>
-      <h3 style="margin-top:0; color: var(--primary); padding-right: 40px;">Resumo</h3>
-      <div id="conteudo-resumo" style="font-size: 0.95rem; line-height: 1.5;"></div>
-    </div>
-  </div>
-
-  <!-- Gestores Config (Relatórios de Faltas) -->
   <div id="modal-gestores-config" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-gestores-config')">×</span>
@@ -292,7 +253,6 @@
     </div>
   </div>
 
-  <!-- Gestores Config (Contratos) -->
   <div id="modal-gestores-contrato-config" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-gestores-contrato-config')">×</span>
@@ -317,7 +277,7 @@
   <div id="modal-add-data-contrato" class="modal-overlay">
     <div class="modal-content">
       <span class="close-modal" onclick="fecharModal('modal-add-data-contrato')">×</span>
-      <h3 style="margin-top:0; padding-right: 40px;">Nova Data (Fim Contrato)</h3>
+      <h3 style="margin-top:0; padding-right: 40px;">Nova Data Contrato</h3>
       <input type="hidden" id="edit-data-contrato-id">
       <input type="date" id="data-contrato-nova">
       <button class="btn-primary btn" onclick="salvarDataContrato()">Salvar Data</button>
@@ -333,7 +293,7 @@
     </div>
   </div>
 
-  <!-- Matriz de Controle Faltas -->
+  <!-- === PAINÉIS DE CONTROLE === -->
   <div id="modal-controle" class="modal-overlay" style="background: var(--bg);">
     <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 20px; display: flex; flex-direction: column;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-right: 40px;">
@@ -355,7 +315,6 @@
     </div>
   </div>
 
-  <!-- Painel Contratos -->
   <div id="modal-painel-contratos" class="modal-overlay" style="background: var(--bg);">
     <div class="modal-content" style="width: 100%; max-width: 100%; height: 100vh; margin: 0; border-radius: 0; padding: 20px; display: flex; flex-direction: column;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-right: 40px;">
@@ -370,6 +329,48 @@
 
       <div style="overflow: auto; flex-grow: 1; border: 1px solid var(--border); border-radius: 8px; background: #fff;">
         <table class="matrix-table" id="tb-matriz-contratos"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- === 🛡️ MODAIS DE SOBREPOSIÇÃO (SEMPRE POR CIMA) === -->
+  
+  <div id="modal-resumo" class="modal-overlay" style="z-index: 9999;">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-resumo')">×</span>
+      <h3 style="margin-top:0; color: var(--primary); padding-right: 40px;">Resumo</h3>
+      <div id="conteudo-resumo" style="font-size: 0.95rem; line-height: 1.5;"></div>
+    </div>
+  </div>
+
+  <div id="modal-historico" class="modal-overlay" style="z-index: 9999;">
+    <div class="modal-content" style="max-width: 600px;">
+      <span class="close-modal" onclick="fecharModal('modal-historico')">×</span>
+      <h3 style="margin-top:0; padding-right: 40px;">Histórico de Ações</h3>
+      <div id="conteudo-historico"></div>
+    </div>
+  </div>
+
+  <div id="modal-acoes" class="modal-overlay" style="z-index: 9999;">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-acoes')">×</span>
+      <h3 style="text-align: center; margin-top:0; padding-right: 40px;" id="lbl-acao-gestor">Ações</h3>
+      <button class="btn" style="background: var(--card-bg); color: var(--text); justify-content: center; border-color: var(--border);" onclick="consultarHistoricoLocal()">🔎 Consultar Histórico</button>
+      <div class="btn-group-row" style="margin-bottom: 0;">
+        <button class="btn btn-action" style="background: var(--red);" onclick="dispararAcao('Entregar')">ENTREGAR</button>
+        <button class="btn btn-action" style="background: var(--green);" onclick="dispararAcao('Devolver')">DEVOLVER</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-manual" class="modal-overlay" style="z-index: 99999;">
+    <div class="modal-content">
+      <span class="close-modal" onclick="fecharModal('modal-manual')">×</span>
+      <h3 style="margin-top:0; padding-right: 40px;">Inserir Código</h3>
+      <input type="number" id="input-manual-code" placeholder="Digite o código de barras">
+      <div class="btn-group-row" style="margin-top: 20px; margin-bottom: 0;">
+        <button class="btn btn-action" style="background: var(--green);" onclick="confirmarCodigoManual()">OK</button>
+        <button class="btn btn-action" style="background: var(--gray);" onclick="fecharModal('modal-manual')">Cancelar</button>
       </div>
     </div>
   </div>
@@ -402,6 +403,15 @@
       atualizarUIUsuario();
       sendInBackground('sincronizar', {});
     };
+
+    function showToastInfo(msg, cor = "var(--text-light)") {
+       let t = document.getElementById('network-status');
+       if(!t) return;
+       t.style.display = 'block';
+       t.innerText = msg;
+       t.style.color = cor;
+       setTimeout(() => { if(t.innerText === msg) t.style.display = 'none'; }, 4000);
+    }
 
     function getNomeLocal(codigo) {
       if (!codigo) return '';
@@ -460,34 +470,52 @@
     function abrirModal(id) { document.getElementById(id).style.display = 'block'; }
     function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
 
+    // 🛡️ CORREÇÃO DE REDE: POST p/ enviar e BUSTER DE CACHE (_t) p/ receber.
     function sendInBackground(action, payload, cb = null) {
-      if (!navigator.onLine) return;
-      const callbackName = 'jsonp_cb_' + Date.now() + '_' + Math.round(100000 * Math.random());
-      const script = document.createElement('script');
-      
-      let timeoutId = setTimeout(() => {
-        if (window[callbackName]) { delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); }
-      }, 15000); 
+      if (!navigator.onLine) {
+         showToastInfo("Modo Offline Ativo. Ações salvas apenas no aparelho.", "var(--yellow)");
+         return;
+      }
 
-      window[callbackName] = function(response) {
-        clearTimeout(timeoutId); delete window[callbackName]; 
-        if (script.parentNode) script.parentNode.removeChild(script);
-        if (response && response.status === 'success') {
-          if (action === 'sincronizar' && response.data) { 
-            db = response.data; 
-            saveDBLocal(); 
-            atualizarUIUsuario(); 
-            renderTelaAtual(); 
-            if (document.getElementById('modal-historico').style.display === 'block') consultarHistoricoLocal();
-            if (currentScreen === 'screen-contratos-colab') renderListaColabContrato();
-          }
-          if (cb) cb(response.data);
-        }
-      };
-      const params = new URLSearchParams({ action: action, payload: JSON.stringify(payload || {}), callback: callbackName });
-      script.src = `${API_URL}?${params.toString()}`; 
-      script.onerror = function() { clearTimeout(timeoutId); delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); };
-      document.body.appendChild(script);
+      if (action === 'sincronizar') {
+          showToastInfo("Sincronizando com a nuvem...", "var(--secondary)");
+          const callbackName = 'jsonp_cb_' + Date.now() + '_' + Math.round(100000 * Math.random());
+          const script = document.createElement('script');
+          
+          let timeoutId = setTimeout(() => {
+            if (window[callbackName]) { delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); }
+          }, 15000); 
+
+          window[callbackName] = function(response) {
+            clearTimeout(timeoutId); delete window[callbackName]; 
+            if (script.parentNode) script.parentNode.removeChild(script);
+            if (response && response.status === 'success' && response.data) {
+                db = response.data; 
+                saveDBLocal(); 
+                atualizarUIUsuario(); 
+                renderTelaAtual(); 
+                if (document.getElementById('modal-historico').style.display === 'block') consultarHistoricoLocal();
+                if (currentScreen === 'screen-contratos-colab') renderListaColabContrato();
+                showToastInfo("✅ Tudo atualizado!", "var(--green)");
+            }
+            if (cb) cb(response.data);
+          };
+          // _t destrói o cache do navegador forçando leitura fresca.
+          const params = new URLSearchParams({ action: action, payload: JSON.stringify(payload || {}), callback: callbackName, _t: Date.now() });
+          script.src = `${API_URL}?${params.toString()}`; 
+          script.onerror = function() { clearTimeout(timeoutId); delete window[callbackName]; if (script.parentNode) script.parentNode.removeChild(script); };
+          document.body.appendChild(script);
+      } else {
+          // Requisições seguras para escrita via POST (Livres de limites de URL)
+          fetch(API_URL, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ action: action, payload: JSON.stringify(payload || {}) })
+          }).then(() => {
+              if (cb) cb({success: true});
+          }).catch(err => console.log(err));
+      }
     }
 
     function renderTelaAtual() {
@@ -513,7 +541,7 @@
     }
     function fazerLogout() { loggedUserBarcode = null; atualizarUIUsuario(); alert("Desconectado."); }
 
-    // --- LEITURA TRIPLA DO SCANNER (BEST OF 3) ---
+    // --- LEITURA TRIPLA DO SCANNER (BEST OF 3 ABSOLUTO) ---
     let scanHistory = [];
     let isScanning = false;
 
@@ -539,11 +567,12 @@
           scanHistory.push(codigoLimpo);
           if (scanHistory.length > 3) scanHistory.shift(); 
           
-          let counts = {};
           let winner = null;
-          for (let code of scanHistory) {
-              counts[code] = (counts[code] || 0) + 1;
-              if (counts[code] >= 2) { winner = code; break; }
+          // EXIGÊNCIA RIGOROSA: Tem que ler 3 vezes O MESMO CÓDIGO consecutivamente.
+          if (scanHistory.length === 3 && 
+              scanHistory[0] === scanHistory[1] && 
+              scanHistory[1] === scanHistory[2]) {
+              winner = scanHistory[0];
           }
           
           if (winner) {
@@ -728,6 +757,9 @@
       html += '</tbody></table>'; document.getElementById('conteudo-historico').innerHTML = html;
     }
 
+    // =======================================================
+    // MATRIZ DE CONTROLE (RELATÓRIO DE FALTAS)
+    // =======================================================
     function abrirControle() {
       let sel = document.getElementById('controle-periodo-select'); 
       if(!sel) return;
@@ -880,6 +912,7 @@
     }
     function editarGestorContrato(id) { let g = db.contratosListaGestores.find(item => item.ID === id); if(!g) return; document.getElementById('edit-gestor-contrato-id').value = g.ID; document.getElementById('nome-gestor-contrato').value = g.Nome; document.getElementById('lbl-modal-gestor-contrato-titulo').innerText = "Editar Gestor"; abrirModal('modal-add-gestor-contrato'); }
     function excluirGestorContrato(id) { if(confirm("Deseja remover?")) { db.contratosListaGestores = db.contratosListaGestores.filter(g => g.ID !== id); saveDBLocal(); abrirGestoresContratoConfig(); sendInBackground('excluirGestorContrato', { id: id }); } }
+    // ----------------------------------------------
 
     function prepararModalDataContrato() { document.getElementById('edit-data-contrato-id').value = ''; document.getElementById('data-contrato-nova').value = ''; abrirModal('modal-add-data-contrato'); }
     
